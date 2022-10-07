@@ -21,7 +21,7 @@ keywords = [
 ]
 license-file = "LICENSE"
 readme = "readme.MD"
-publish = false
+publish = true
 # im-a-teapot = false
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
