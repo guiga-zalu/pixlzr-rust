@@ -1,4 +1,4 @@
-use crate::pixlzr::tree_process;
+/* use crate::pixlzr::tree_process;
 use image::{/*imageops::FilterType,*/ open, DynamicImage};
 // use std::f32::consts::{FRAC_PI_2};
 // use std::fs;
@@ -12,7 +12,7 @@ fn processar(imagem: &DynamicImage, k: f32) -> DynamicImage {
 		k,
 		Some(|v| v),
 	)
-}
+} */
 
 /*
 fn processar_pasta(pasta: &str){
@@ -34,7 +34,9 @@ fn processar_pasta(pasta: &str){
 }
 */
 
-fn main() {
+fn main() {}
+
+/* fn main() {
 	// let block_size: u32 = 128;
 	// processar_pasta("./img");
 	let nome = "./img/blur.jpg";
@@ -57,3 +59,4 @@ fn main() {
 			.expect("Erro ao salvar");
 	}
 }
+ */
