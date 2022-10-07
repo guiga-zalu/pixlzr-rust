@@ -1,0 +1,30 @@
+[package]
+name = "pixlzr"
+description = "Pixzlr"
+version = "0.1.0"
+edition = "2021"
+authors = [
+    "Guilherme Zaluchi <desenv@guilherme.zaluchi.com.br>"
+]
+homepage = "https://github.com/guiga-zalu/pixlzr-rust"
+repository = "https://github.com/guiga-zalu/pixlzr-rust"
+include = [
+    "src/**/*",
+    "Cargo.toml",
+    "readme.MD",
+    "LICENSE"
+]
+categories = []
+keywords = [
+    "pixlzr",
+    "image", "compression", "lossy"
+]
+license-file = "LICENSE"
+readme = "readme.MD"
+publish = false
+# im-a-teapot = false
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+image = "0.24"

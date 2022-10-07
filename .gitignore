@@ -1,0 +1,6 @@
+.*
+!.gitignore
+/target
+/img
+/dst
+src/main.rs
