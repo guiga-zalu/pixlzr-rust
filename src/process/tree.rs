@@ -68,10 +68,7 @@ where
 ///
 ///
 ///
-pub fn process<F0>(image: &DynamicImage, block_size: u32, threshold: f32) -> DynamicImage
-where
-    F0: (Fn(f32) -> f32) + Copy,
-{
+pub fn process(image: &DynamicImage, block_size: u32, threshold: f32) -> DynamicImage {
     let before_average = |x: f32, avg: f32| (x - avg).abs();
     // |x, avg| (x - avg).pow(2)
     let after_average = |x: f32| x;

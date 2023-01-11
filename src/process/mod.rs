@@ -40,7 +40,7 @@ where
 ///
 ///
 ///
-pub fn process<F0, F1, F2>(image: &DynamicImage, block_size: u32) -> DynamicImage {
+pub fn process(image: &DynamicImage, block_size: u32) -> DynamicImage {
     let before_average = |x: f32, avg: f32| (x - avg).abs();
     // |x, avg| (x - avg).pow(2)
     let after_average = |x: f32| x;
