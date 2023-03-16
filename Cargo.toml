@@ -1,24 +1,23 @@
 [package]
 name = "pixlzr"
-description = "Pixzlr"
+description = "Pixlzr - A rust lib and CLI for the pixlzr image format"
 version = "0.2.1"
 edition = "2021"
-authors = [
-    "Guilherme Zaluchi <desenv@guilherme.zaluchi.com.br>"
-]
+authors = ["Guilherme Zaluchi <desenv@guilherme.zaluchi.com.br>"]
 homepage = "https://github.com/guiga-zalu/pixlzr-rust"
 repository = "https://github.com/guiga-zalu/pixlzr-rust"
 include = [
-    "src/**/*",
-    "Cargo.toml",
-    "readme.MD",
-    "LICENSE"
+	"src/**/*",
+	"benches/**/*",
+	"Cargo.toml",
+	"readme.MD",
+	"readme.*.MD",
+	"LICENSE",
+	"encoding.MD",
+	"encoding.*.MD",
 ]
 categories = []
-keywords = [
-    "pixlzr",
-    "image", "compression", "lossy"
-]
+keywords = ["pixlzr", "image", "compression", "lossy", "image compression"]
 license-file = "LICENSE"
 readme = "readme.MD"
 publish = true
@@ -28,3 +27,13 @@ publish = true
 
 [dependencies]
 image = "0.24"
+anyhow = "1.0.69"
+qoi = "0.4"
+clap = { version = "4.0", features = ["derive", "cargo"] }
+
+[dev-dependencies]
+criterion = "0.3"
+
+[[bench]]
+name = "bench-00"
+harness = false

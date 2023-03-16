@@ -1,3 +1,4 @@
+use crate::data_types::PixlzrBlockImage;
 use image::{imageops::FilterType, DynamicImage, GenericImageView, Rgba};
 
 /// Calculates a `[0; 1]` value for the pixel variance of a given `img` image
@@ -46,7 +47,8 @@ where
     - $\bar p$: average pixel value
     - $\delta_{i, j}$: per pixel difference
     - $\int\delta$: sum of differences
-    The maximum value for $\in\delta$ is* when:
+
+    The maximum value for $\in\delta$ is when:
     - $p_{i, j} = M$ for half of the values of $i, j$,
     - and $0$ for the other half.
     So $\bar p = {M\over 2}$ and $\delta_{i, j} = {M\over 2}$.
@@ -54,23 +56,23 @@ where
     cont := W * H
      */
     let factor = count * (u8::MAX >> 1) as f32;
-    after(delta[0] + delta[1] + delta[2] + delta[3]) / factor
+    after((delta[0] + delta[1] + delta[2] + delta[3]) / factor)
 }
 
 pub fn reduce_image_section(
     value: f32,
-    w0: u32,
-    h0: u32,
-    block: DynamicImage,
+    block: &DynamicImage,
     filter_downscale: FilterType,
-    filter_upscale: FilterType,
-) -> DynamicImage {
+) -> PixlzrBlockImage {
     let level = value.log2().round().min(0f32).exp2();
-    let w1 = (w0 as f32 * level).ceil() as u32;
-    let h1 = (h0 as f32 * level).ceil() as u32;
-    // Resizes the image down and back
-    let img = block
-        .resize(w1, h1, filter_downscale)
-        .resize(w0, h0, filter_upscale);
-    img
+    let (width, height) = block.dimensions();
+    let width = (width as f32 * level).max(1.0).ceil() as u32;
+    let height = (height as f32 * level).max(1.0).ceil() as u32;
+    // Resizes the image down
+    PixlzrBlockImage {
+        width,
+        height,
+        data: block.resize_exact(width, height, filter_downscale),
+        block_value: Some(value),
+    }
 }

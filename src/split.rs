@@ -1,29 +1,27 @@
+use crate::data_types::{ImageBlock, PixlzrBlock, PixlzrBlockImage};
 use image::{DynamicImage, GenericImageView};
 use std::vec::Vec;
 
 /// Return a cut-out of this image delimited by the bounding rectangle.
 ///
 /// Tests if `width` and `height` produce a valid rectangle inside the `img` image and, if not, alter them.
-fn get_image_block<'a>(
+pub fn get_image_block<'a>(
     image: &'a DynamicImage,
     x: u32,
     y: u32,
     mut width: u32,
     mut height: u32,
-) -> DynamicImage {
+) -> PixlzrBlock {
     let (iw, ih) = image.dimensions();
     width = if x + width > iw { iw - x } else { width };
     height = if y + height > ih { ih - y } else { height };
-    image.crop_imm(x, y, width, height)
-}
-
-/// Image block representation, with:
-/// - `x: u32, y: u32` as the coordinates of the block
-/// - `block: DynamicImage` as the sub-image
-pub struct ImageBlock {
-    pub x: u32,
-    pub y: u32,
-    pub block: DynamicImage,
+    PixlzrBlockImage {
+        data: image.crop_imm(x, y, width, height),
+        width,
+        height,
+        block_value: None,
+    }
+    .into()
 }
 
 /// Splits the `img` image into blocks of size up to `width` x `height`, and returns the blocks as a `Vec<SubImagem>`

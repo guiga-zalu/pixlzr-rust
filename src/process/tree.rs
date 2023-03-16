@@ -1,5 +1,5 @@
-use crate::{operations::*, split::split_image};
-use image::{imageops::FilterType, DynamicImage, GenericImage};
+use crate::{data_types::PixlzrBlock, operations::*, split::split_image};
+use image::{imageops::FilterType, DynamicImage, GenericImage, GenericImageView};
 
 ///
 ///
@@ -34,15 +34,20 @@ where
     // For each splitten block
     for section in split_image(&image, block_width, block_height) {
         // Get the block and it's dimensions
-        let block: DynamicImage = section.block;
+        let block: DynamicImage = match section.block {
+            PixlzrBlock::Image(section) => section.data,
+            _ => panic!(),
+        };
         let (x, y) = (section.x, section.y);
-        let (w0, h0) = (block.width(), block.height());
+        let (w0, h0) = block.dimensions();
         // Calculate the value
         let value = get_block_variance(&block, &before_average, &after_average);
         // Post-process the value
         let img = if (value >= threshold) ^ is_positive {
             // Calculate the resize level and dimensions
-            reduce_image_section(value, w0, h0, block, filter_downscale, filter_upscale)
+            reduce_image_section(value, &block, filter_downscale)
+                .data
+                .resize(w0, h0, filter_upscale)
         } else {
             process_custom(
                 &block,

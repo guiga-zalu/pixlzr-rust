@@ -1,6 +1,7 @@
 .*
 !.gitignore
 /target
+/emulsion
 /img
+/tests
 /dst
-src/main.rs
