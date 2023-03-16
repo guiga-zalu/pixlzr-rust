@@ -1,7 +1,7 @@
 [package]
 name = "pixlzr"
 description = "Pixlzr - A rust lib and CLI for the pixlzr image format"
-version = "0.2.1"
+version = "0.2.2"
 edition = "2021"
 authors = ["Guilherme Zaluchi <desenv@guilherme.zaluchi.com.br>"]
 homepage = "https://github.com/guiga-zalu/pixlzr-rust"
