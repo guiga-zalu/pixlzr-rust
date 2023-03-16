@@ -17,15 +17,7 @@ include = [
 	"encoding.*.MD",
 ]
 categories = []
-keywords = [
-	"pixlzr",
-	"image",
-	"compression",
-	"qoi",
-	"lossy",
-	"image-compression",
-	"cli",
-]
+keywords = ["pixlzr", "image", "compression", "qoi", "cli"]
 license-file = "LICENSE"
 readme = "readme.MD"
 publish = true
