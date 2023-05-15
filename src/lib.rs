@@ -1,3 +1,4 @@
+pub mod constants;
 mod data_types;
 pub mod encoding;
 mod io;

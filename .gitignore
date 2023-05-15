@@ -5,3 +5,7 @@
 /img
 /tests
 /dst
+*.png
+*.jpg
+!image.png
+*.sh

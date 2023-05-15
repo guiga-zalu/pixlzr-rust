@@ -1,15 +1,40 @@
-use crate::{data_types::Pixlzr, PixlzrBlock, PixlzrBlockImage};
-use image::{RgbImage, RgbaImage};
+use crate::{constants::*, data_types::Pixlzr, PixlzrBlock, PixlzrBlockImage, Semver};
+use image::{imageops::FilterType, RgbImage, RgbaImage};
 use qoi;
+
+const VERSION_FILTER: Semver = Semver {
+    major: 0,
+    minor: 0,
+    patch: 1,
+};
 
 type Raw = Vec<u8>;
 
-pub const PIXLZR_MAGIC_NUMBERS: &[u8] = b"PIXLZR";
-pub const PIXLZR_MAGIC_VERSION: &[u8] = &[0, 0, 1];
-pub const PIXLZR_BLOCK_HEADER: &[u8] = b"block";
-pub const PIXLZR_HEADER_SIZE: usize =
-    PIXLZR_MAGIC_NUMBERS.len() + PIXLZR_MAGIC_VERSION.len() + 4 * 4;
+fn u8_to_filter(value: u8) -> FilterType {
+    match value {
+        1 => FilterType::Nearest,
+        2 => FilterType::Triangle,
+        3 => FilterType::CatmullRom,
+        4 => FilterType::Gaussian,
+        _ => FilterType::Lanczos3,
+    }
+}
+fn filter_to_u8(value: FilterType) -> u8 {
+    match value {
+        FilterType::Nearest => 1,
+        FilterType::Triangle => 2,
+        FilterType::CatmullRom => 3,
+        FilterType::Gaussian => 4,
+        FilterType::Lanczos3 => 5,
+    }
+}
 
+#[inline]
+fn encode_u8(out: &mut Raw, index: usize, number: u8) -> usize {
+    let index2 = index + 1;
+    out[index..index2].copy_from_slice(&number.to_be_bytes());
+    index2
+}
 #[inline]
 fn encode_u32(out: &mut Raw, index: usize, number: u32) -> usize {
     let index2 = index + 4;
@@ -30,6 +55,12 @@ fn encode_slice(out: &mut Raw, index: usize, slice: &[u8]) -> usize {
     out.reserve(len);
     out[index..index2].copy_from_slice(slice);
     index2
+}
+#[inline]
+fn decode_u8(inp: &Raw, index: &mut usize) -> u8 {
+    let number = inp[*index];
+    *index += 1;
+    number
 }
 #[inline]
 fn decode_u32(inp: &Raw, index: &mut usize) -> u32 {
@@ -65,7 +96,7 @@ fn decode_slice<'a>(inp: &'a Raw, index: &mut usize, len: usize) -> &'a [u8] {
 }
 
 impl Pixlzr {
-    pub fn encode_to_vec(&self) -> qoi::Result<Raw> {
+    /* pub fn encode_to_vec(&self) -> qoi::Result<Raw> {
         let mut out =
             vec![0_u8; self.blocks.len() * self.block_width as usize * self.block_height as usize];
 
@@ -94,7 +125,7 @@ impl Pixlzr {
         }
 
         Ok(out)
-    }
+    } */
     pub fn encode_to_vec_vec(&self) -> qoi::Result<Raw> {
         let mut total = vec![];
 
@@ -105,6 +136,7 @@ impl Pixlzr {
         index = encode_slice(&mut out, index, PIXLZR_MAGIC_NUMBERS);
         // println!("{:?} @ [{}]", out, index);
         index = encode_slice(&mut out, index, PIXLZR_MAGIC_VERSION);
+        index = encode_u8(&mut out, index, self.filter.map_or(0, filter_to_u8));
         index = encode_u32(&mut out, index, self.width);
         index = encode_u32(&mut out, index, self.height);
         index = encode_u32(&mut out, index, self.block_width);
@@ -144,7 +176,11 @@ impl Pixlzr {
         let mut index: usize = 0;
         // - Header
         assert_eq!(PIXLZR_MAGIC_NUMBERS, decode_slice(inp, &mut index, 6));
-        assert_eq!(PIXLZR_MAGIC_VERSION, decode_slice(inp, &mut index, 3));
+        let version: Semver = decode_slice(inp, &mut index, 3).into();
+        let mut filter = None;
+        if version >= VERSION_FILTER {
+            filter = Some(u8_to_filter(decode_u8(inp, &mut index)));
+        }
         let width = decode_u32(inp, &mut index);
         let height = decode_u32(inp, &mut index);
         let block_width = decode_u32(inp, &mut index);
@@ -187,6 +223,7 @@ impl Pixlzr {
             block_width,
             block_height,
             blocks,
+            filter,
         })
     }
 }

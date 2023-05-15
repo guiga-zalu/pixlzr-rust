@@ -45,7 +45,7 @@ where
         // Post-process the value
         let img = if (value >= threshold) ^ is_positive {
             // Calculate the resize level and dimensions
-            reduce_image_section(value, &block, filter_downscale)
+            reduce_image_section((value, value), &block, filter_downscale)
                 .data
                 .resize(w0, h0, filter_upscale)
         } else {

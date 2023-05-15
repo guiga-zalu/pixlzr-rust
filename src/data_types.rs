@@ -1,10 +1,9 @@
 use crate::{
-    operations::{get_block_variance, reduce_image_section},
+    operations::{get_block_variance, get_block_variance_by_directions, reduce_image_section},
     split::get_image_block,
 };
 use image::{
-    imageops::FilterType, DynamicImage, GenericImage, GenericImageView, ImageResult, RgbImage,
-    RgbaImage,
+    imageops::FilterType, DynamicImage, GenericImage, GenericImageView, RgbImage, RgbaImage,
 };
 
 #[derive(Clone)]
@@ -14,6 +13,7 @@ pub struct Pixlzr {
     pub block_width: u32,
     pub block_height: u32,
     pub blocks: Vec<PixlzrBlock>,
+    pub filter: Option<FilterType>,
 }
 
 impl Pixlzr {
@@ -31,6 +31,7 @@ impl Pixlzr {
             block_width,
             block_height,
             blocks,
+            filter: None,
         }
     }
     pub fn expand(&self, filter: FilterType) -> Self {
@@ -97,6 +98,7 @@ impl Pixlzr {
             block_width,
             block_height,
             blocks,
+            filter: Some(filter),
         }
     }
     pub fn shrink<F0, F1>(
@@ -117,7 +119,7 @@ impl Pixlzr {
                     let img = &block.data;
                     // Calculate the value
                     let value = get_block_variance(img, &before_average, &after_average);
-                    let reduced = reduce_image_section(value, &img, filter_downscale);
+                    let reduced = reduce_image_section((value, value), &img, filter_downscale);
                     // assert_eq!(reduced.width, reduced.data.width());
                     // assert_eq!(reduced.height, reduced.data.height());
                     reduced.into()
@@ -138,14 +140,34 @@ impl Pixlzr {
                 let img = &block.data;
                 // Calculate the value
                 let value = get_block_variance(img, &before_average, &after_average);
-                let reduced = reduce_image_section(value, &img, filter_downscale);
+                let reduced = reduce_image_section((value, value), &img, filter_downscale);
                 // assert_eq!(reduced.width, reduced.data.width());
                 // assert_eq!(reduced.height, reduced.data.height());
                 reduced.into()
             })
             .collect();
     }
-    pub fn to_image(&self, filter: FilterType) -> ImageResult<DynamicImage> {
+    pub fn shrink_directionally(&mut self, filter_downscale: FilterType, factor: f32) {
+        self.blocks = self
+            .blocks
+            .iter()
+            .map(|block| {
+                let block = block.as_image().unwrap();
+                let img = &block.data;
+                // Calculate the value
+                let value = get_block_variance_by_directions(img);
+                let reduced = reduce_image_section(
+                    (value.0 * factor, value.1 * factor),
+                    &img,
+                    filter_downscale,
+                );
+                // assert_eq!(reduced.width, reduced.data.width());
+                // assert_eq!(reduced.height, reduced.data.height());
+                reduced.into()
+            })
+            .collect();
+    }
+    pub fn to_image(&self, filter: FilterType) -> DynamicImage {
         // println!("Pre-expansion");
         let pix = self.expand(filter);
         // println!("Post-expansion");
@@ -172,14 +194,22 @@ impl Pixlzr {
             //     y * block_height + img.height(),
             //     img.dimensions(),
             // );
-            output.copy_from(img, x * block_width, y * block_height)?;
+            output
+                .copy_from(img, x * block_width, y * block_height)
+                .unwrap();
             x += 1;
             if x == horizontal_blocks {
                 x = 0;
                 y += 1;
             }
         }
-        Ok(output)
+        output
+    }
+}
+
+impl From<Pixlzr> for DynamicImage {
+    fn from(value: Pixlzr) -> Self {
+        value.to_image(value.filter.unwrap_or(FilterType::Gaussian))
     }
 }
 
@@ -372,3 +402,55 @@ pub struct ImageBlock {
     pub y: u32,
     pub block: PixlzrBlock,
 }
+
+pub mod semver {
+    use std::cmp::Ordering;
+
+    #[derive(Debug, Clone, Copy, Eq, PartialEq, Default)]
+    pub struct Semver {
+        pub major: u32,
+        pub minor: u32,
+        pub patch: u32,
+    }
+
+    impl Ord for Semver {
+        fn cmp(&self, other: &Self) -> Ordering {
+            let m = (&self.major).cmp(&other.major);
+            if m.is_eq() {
+                let m = (&self.minor).cmp(&other.minor);
+                if m.is_eq() {
+                    (&self.patch).cmp(&other.patch)
+                } else {
+                    m
+                }
+            } else {
+                m
+            }
+        }
+    }
+
+    impl PartialOrd for Semver {
+        fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+            Some(self.cmp(other))
+        }
+    }
+
+    impl From<&[u8]> for Semver {
+        fn from(value: &[u8]) -> Self {
+            let len = value.len();
+            let mut ver = Semver::default();
+            if len > 0 {
+                ver.major = value[0] as u32;
+                if len > 1 {
+                    ver.minor = value[1] as u32;
+                    if len > 2 {
+                        ver.patch = value[2] as u32;
+                    }
+                }
+            }
+            ver
+        }
+    }
+}
+
+pub use semver::Semver;

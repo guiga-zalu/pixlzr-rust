@@ -29,7 +29,7 @@ where
         let (w0, h0) = block.dimensions();
         // Calculate the value
         let value = get_block_variance(&block, &before_average, &after_average);
-        let img = reduce_image_section(value, &block, filter_downscale)
+        let img = reduce_image_section((value, value), &block, filter_downscale)
             .data
             .resize(w0, h0, filter_upscale);
         // Saves it's data in the output buffer
@@ -67,7 +67,7 @@ where
         let (w0, h0) = block.dimensions();
         // Calculate the value
         let value = get_block_variance(&block, &before_average, &after_average);
-        let img = reduce_image_section(value, &block, filter_downscale)
+        let img = reduce_image_section((value, value), &block, filter_downscale)
             .data
             .resize(w0, h0, filter_upscale);
         // Saves it's data in the output buffer
