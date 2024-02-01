@@ -6,7 +6,7 @@
 
 ## History
 
-Fridy, `10` of February of `2023` (`10/02/2023`), my second teoric FeMec class in the year.  
+Friday, `10` of February of `2023` (`10/02/2023`), my second teoric FeMec class in the year.  
 As I had a little of free time, I drafted an specification:  
 
 ![.](.)
@@ -31,20 +31,22 @@ Após algumas horas de trabalho, incluindo alterações na `crate image` (que re
 | 3 | 4 | 17 | Header | Height | `u32` |
 | 4 | 4 | 21 | Header | Block's Width | `u32` |
 | 5 | 4 | 25 | Header | Block's Height | `u32` |
+| 6 | ? | 6 + ? | Header |  | `[u32; ..]` |
 | . | . | .. | .. | .. |
 | n | 5 | n + 5 | Block | Magic Numbers | `b"block"` |
 | n | 4 | n + 9 | Block | Value of the block | `f32` |
-| n | 4 | n + 13 | Block | Size of the QOI block | `u32` |
+| n | 4 | n + 13 | Block | Size of the QOI block | `u32 =: m` |
 | n | m | n + m | Block | QOI Block |
 
 ```txt
 PIXLZR := HEADER + BLOCKS
 
-HEADER := PIXLZR_MAGIC_NUMBERS + PIXLZR_VERSION + WIDTH + HEIGHT + BLOCK_WIDTH + BLOCK_HEIGHT
+HEADER := PIXLZR_MAGIC_NUMBERS + PIXLZR_VERSION + WIDTH + HEIGHT + BLOCK_WIDTH + BLOCK_HEIGHT + LINE_LENGTHS
 
 PIXLZR_MAGIC_NUMBERS = b"PIXLZR"
 PIXLZR_VERSION = [0, 0, 1]
 WIDTH, HEIGHT, BLOCK_WIDTH, BLOCK_HEIGHT := unsigned int of 4 octets
+LINE_LENGTHS := array do unsigned ints of 4 octets each; size is the vertical amount of blocks
 
 BLOCKS := BLOCK[]
 
@@ -56,7 +58,7 @@ QOI_IMAGE_LENGTH := unsigned int of 4 octets
 QOI_IMAGE := list of octets
 ```
 
-And, finally:
+And, finally, the most recent version is:
 
 ```txt
 PIXLZR :=
@@ -67,6 +69,7 @@ PIXLZR :=
         HEIGHT
         BLOCK_WIDTH
         BLOCK_HEIGHT
+        LINE_LENGTHS
     BLOCKS := [
         b"block"
         BLOCK_VALUE
@@ -74,3 +77,5 @@ PIXLZR :=
         QOI_IMAGE
     ]
 ```
+
+`LINE_LENGTHS` is used to encode and decode in parallel.

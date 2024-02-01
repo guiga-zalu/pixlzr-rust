@@ -16,11 +16,21 @@ A lossy image compression algorithm, based in a per-block level of detail detect
   - [CLI](#cli)
   - [Core concept](#core-concept)
 
+## Example
+
+![](./Big-Ruscher.png)
+
+```sh
+> pixlzr -i <image input> -o <image output> --force
+```
+
+![](./Big-Ruscher.pix.png)
+
 ## Installing
 
 Just put `pixlzr = "0"` as one of the `[dependencies]` into your `Cargo.toml`.
 
-## Using
+## Using via the API
 
 ### Before using it
 
@@ -58,13 +68,13 @@ tree_full_process(&image, 0.25, Some(|v| v / 6.0)): DynamicImage
 
 ```rust
 // Importing
-use image::{open, DynamicImage};
+use image::DynamicImage;
 use pixlzr::{FilterType, Pixlzr};
 ```
 
 ```rust
 // Convert to
-let png: DynamicImage = open("img.png");
+let png: DynamicImage = ::image::open("img.png");
 
 let mut pix = Pixlzr::from_image(&img, 64, 64u32);
 pix.shrink_by(FilterType::Gaussian, 0.8);
@@ -81,6 +91,12 @@ img.save("reduced-img.png");
 
 ## CLI
 
+Fot CLI usage, install with
+
+```sh
+> cargo install pixlzr
+```
+
 The <abbr title="Command Line Interface">CLI</abbr> can be understood with a run of `pixlzr -h`.
 
 ```txt
@@ -89,14 +105,32 @@ Pixlzr - A rust lib and CLI for the pixlzr image format
 Usage: pixlzr [OPTIONS] --input <INPUT> --output <OUTPUT>
 
 Options:
-  -i, --input <INPUT>                The input image file
-  -o, --output <OUTPUT>              The output image file
-  -b, --block-width <BLOCK_WIDTH>    The width of each block [default: 64]
-      --block-height <BLOCK_HEIGHT>  The height of each block
-  -k, --shrink-by <SHRINK_BY>        The shrinking factor [default: 1]
-      --filter <FILTER>              The filter used when resizing the image blocks [default: lanczos3] [possible values: nearest, triangle, catmull-rom, gaussian, lanczos3]
-  -h, --help                         Print help (see more with '--help')
-  -V, --version                      Print version
+  -i, --input <INPUT>
+          The input image file
+  -o, --output <OUTPUT>
+          The output image file
+  -b, --block-width <BLOCK_WIDTH>
+          The width of each block
+          [default: 64]
+      --block-height <BLOCK_HEIGHT>
+          The height of each block
+  -k, --shrinking-factor <SHRINKING_FACTOR>
+          The shrinking factor: [+|-][1/][D][.D]
+          If negative, is passed through max(0, 1 - x)
+          [default: 1]
+  -f, --filter <FILTER>
+          The filter used when resizing the image blocks
+          [default: lanczos3]
+          [possible values: nearest, triangle, catmull-rom, gaussian, lanczos3]
+  -d, --direction-wise <DIRECTION_WISE>
+          Direction-wise scan
+          [possible values: true, false]
+      --force
+          If image-2-image, force shrinking?
+  -h, --help
+          Print help (see more with '--help')
+  -V, --version
+          Print version
 ```
 
 It converts _from_ and _to_ the `pixlzr` format, with use of the `crate image`.

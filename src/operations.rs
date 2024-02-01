@@ -1,122 +1,156 @@
-use crate::data_types::PixlzrBlockImage;
 use core::ops::{AddAssign, Mul};
-use image::{imageops::FilterType, DynamicImage, GenericImageView, Pixel, Primitive, Rgba};
 
+#[cfg(feature = "image-rs")]
+use crate::data_types::PixlzrBlockImage;
+#[cfg(feature = "image-rs")]
+use image::{
+	imageops::FilterType, DynamicImage, GenericImageView, Pixel,
+	Primitive, Rgba,
+};
+#[cfg(feature = "image-rs")]
+use palette::{IntoColor, Oklaba, Srgba};
+
+#[cfg(feature = "image-rs")]
 /// Calculates a `[0; 1]` value for the pixel variance of a given `img` image
 ///
 /// 1. Calculates the average of pixel values
 /// 2. Calculates the total difference of these values
 /// 3. Normalizes the result to `[0; 1]`
-pub fn get_block_variance<T, F0, F1>(img: &T, before: &F0, after: &F1) -> f32
+pub fn get_block_variance<T, F0, F1>(
+	img: &T,
+	before: &F0,
+	after: &F1,
+) -> f32
 where
-    T: GenericImageView<Pixel = Rgba<u8>>,
-    F0: Fn(f32, f32) -> f32,
-    F1: Fn(f32) -> f32,
+	T: GenericImageView<Pixel = Rgba<u8>>,
+	F0: Fn(f32, f32) -> f32,
+	F1: Fn(f32) -> f32,
 {
-    // 1. Calculates the average of pixel values
-    let mut sum: [u32; 4] = [0, 0, 0, 0];
-    let mut count: u64 = 0;
-    for (_x, _y, pixel) in img.pixels() {
-        let rgba = pixel.0;
-        sum[0] += rgba[0] as u32;
-        sum[1] += rgba[1] as u32;
-        sum[2] += rgba[2] as u32;
-        sum[3] += rgba[3] as u32;
-        count += 1;
-    }
-    let count = count as f32;
-    let average = [
-        sum[0] as f32 / count,
-        sum[1] as f32 / count,
-        sum[2] as f32 / count,
-        sum[3] as f32 / count,
-    ];
-    // 2. Calculates the total difference of these values
-    let mut delta: [f32; 4] = [0.0, 0.0, 0.0, 0.0];
-    for (_x, _y, pixel) in img.pixels() {
-        let rgba = pixel.0;
-        delta[0] += before(rgba[0] as f32, average[0]);
-        delta[1] += before(rgba[1] as f32, average[1]);
-        delta[2] += before(rgba[2] as f32, average[2]);
-        delta[3] += before(rgba[3] as f32, average[3]);
-    }
-    // 3. Normalizes the result to `[0; 1]`
-    /*
-    - $p_{i, j}$: pixel at position $i, j$
-    - $W, H$: image's width and height
-    - $M$: maximum subpixel value
-    - $\bar p$: average pixel value
-    - $\delta_{i, j}$: per pixel difference
-    - $\int\delta$: sum of differences
+	// 1. Calculates the average of pixel values
+	let (average, count) = {
+		let mut sum = [0.; 4];
+		for (.., pixel) in img.pixels() {
+			let color: Oklaba<f32> =
+				Srgba::new(pixel.0[0], pixel.0[1], pixel.0[2], pixel.0[3])
+					.into_linear()
+					.into_color();
+			sum[0] += color.a;
+			sum[1] += color.b;
+			sum[2] += color.l;
+			sum[3] += color.alpha;
+		}
+		let count = (img.width() * img.height()) as f32;
+		sum[0] /= count;
+		sum[1] /= count;
+		sum[2] /= count;
+		sum[3] /= count;
+		(sum, count)
+	};
 
-    The maximum value for $\in\delta$ is when:
-    - $p_{i, j} = M$ for half of the values of $i, j$,
-    - and $0$ for the other half.
-    So $\bar p = {M\over 2}$ and $\delta_{i, j} = {M\over 2}$.
-    Thus, $\int\delta = W\cdot H\times \delta_{i, j} = {W\cdot H\cdot M\over 2}$.
-    cont := W * H
-     */
-    let factor = count * (u8::MAX >> 1) as f32;
-    after((delta[0] + delta[1] + delta[2] + delta[3]) / factor)
+	// 2. Calculates the total difference between these values
+	let delta = {
+		let mut delta = [0.; 4];
+		for (.., pixel) in img.pixels() {
+			let color: Oklaba<f32> =
+				Srgba::new(pixel.0[0], pixel.0[1], pixel.0[2], pixel.0[3])
+					.into_linear()
+					.into_color();
+			delta[0] += before(color.a, average[0]);
+			delta[1] += before(color.b, average[1]);
+			delta[2] += before(color.l, average[2]);
+			delta[3] += before(color.alpha, average[3]);
+		}
+		delta
+	};
+	// 3. Normalizes the result to `[0; 1]`
+	/*
+	- $p_{i, j}$: pixel at position $i, j$
+	- $W, H$: image's width and height
+	- $M$: maximum subpixel value
+	- $\bar p$: average pixel value
+	- $\delta_{i, j}$: per pixel difference
+	- $\int\delta$: sum of differences
+
+	The maximum value for $\in\delta$ is when:
+	- $p_{i, j} = M$ for half of the values of $i, j$,
+	- and $0$ for the other half.
+	So $\bar p = {M\over 2}$ and $\delta_{i, j} = {M\over 2}$.
+	Thus, $\int\delta = W\cdot H\times \delta_{i, j} = {W\cdot H\cdot M\over 2}$.
+	cont := W * H
+	 */
+	let factor = count;
+	after((delta[0] + delta[1] + delta[2] + delta[3]) / factor)
 }
 
 #[inline(always)]
 fn parse_value(value: f32) -> f32 {
-    if value.is_sign_positive() {
-        return value;
-    }
-    let value = (1f32 + value).max(0f32);
-    if value.is_sign_positive() {
-        value
-    } else {
-        1f32
-    }
+	if value.is_sign_positive() {
+		return value;
+	}
+	let value = (1f32 + value).max(0f32);
+	if value.is_sign_positive() {
+		value
+	} else {
+		1f32
+	}
 }
 
+#[cfg(feature = "image-rs")]
+fn image_resize(
+	img: &DynamicImage,
+	width: u32,
+	height: u32,
+	filter: FilterType,
+) -> DynamicImage {
+	img.resize_exact(width, height, filter)
+}
+
+#[cfg(feature = "image-rs")]
 pub fn reduce_image_section(
-    value: (f32, f32),
-    block: &DynamicImage,
-    filter_downscale: FilterType,
+	value: (f32, f32),
+	block: &DynamicImage,
+	filter_downscale: FilterType,
 ) -> PixlzrBlockImage {
-    let value = (parse_value(value.0), parse_value(value.1));
-    // println!("Post-value: {}", value.0);
-    let level_hz = value.0.log2().round().min(0f32).exp2();
-    let level_vr = value.1.log2().round().min(0f32).exp2();
-    let (width, height) = block.dimensions();
-    let width = (width as f32 * level_hz).max(1f32).ceil() as u32;
-    let height = (height as f32 * level_vr).max(1f32).ceil() as u32;
-    // Resizes the image down
-    PixlzrBlockImage {
-        width,
-        height,
-        data: block.resize_exact(width, height, filter_downscale),
-        block_value: Some(value.0.hypot(value.1)),
-    }
+	let value = (parse_value(value.0), parse_value(value.1));
+	// println!("Post-value: {}", value.0);
+	let level_hz = value.0.log2().round().min(0f32).exp2();
+	let level_vr = value.1.log2().round().min(0f32).exp2();
+	let (width, height) = block.dimensions();
+	let width = (width as f32 * level_hz).max(1f32).ceil() as u32;
+	let height = (height as f32 * level_vr).max(1f32).ceil() as u32;
+	// Resizes the image down
+	PixlzrBlockImage {
+		width,
+		height,
+		data: image_resize(block, width, height, filter_downscale),
+		block_value: Some(value.0.hypot(value.1)),
+	}
 }
 
 #[inline]
 fn add_px<T, U>(acc: &mut Vec<T>, value: &Vec<U>, k: T)
 where
-    T: AddAssign<T> + From<U> + Mul<T, Output = T> + Copy,
-    U: Copy,
+	T: AddAssign<T> + From<U> + Mul<T, Output = T> + Copy,
+	U: Copy,
 {
-    for (el, v) in acc.iter_mut().zip(value) {
-        *el += T::from(*v) * k;
-    }
+	acc.iter_mut().zip(value).for_each(|(el, v)| {
+		*el += T::from(*v) * k;
+	})
 }
 
 const BASE_FACTOR: u64 = (2 << 11) as u64;
 
-#[inline]
+#[cfg(feature = "image-rs")]
 fn pixel_channels<T, U, V>(img: &T, x: u32, y: u32) -> Vec<V>
 where
-    T: GenericImageView<Pixel = U>,
-    U: Pixel<Subpixel = V>,
-    V: Primitive + Copy,
+	T: GenericImageView<Pixel = U>,
+	U: Pixel<Subpixel = V>,
+	V: Primitive + Copy,
 {
-    img.get_pixel(x, y).channels().to_owned()
+	img.get_pixel(x, y).channels().to_owned()
 }
 
+#[cfg(feature = "image-rs")]
 /// Calculates a `[0; 1]` value for the pixel variance of a given `img` image
 ///
 /// 1. Calculates the average of pixel values
@@ -124,58 +158,59 @@ where
 /// 3. Normalizes the result to `[0; 1]`
 pub fn get_block_variance_by_directions<T, U>(img: &T) -> (f32, f32)
 where
-    T: GenericImageView<Pixel = U>,
-    U: Pixel<Subpixel = u8>,
+	T: GenericImageView<Pixel = U>,
+	U: Pixel<Subpixel = u8>,
 {
-    let abs = |x: &i16| x.abs() as u16;
-    // 1. Calculates the average of pixel values
-    let channels = U::CHANNEL_COUNT as usize;
-    let mut sum_hz = vec![0u64; channels];
-    let mut sum_vr = vec![0u64; channels];
+	let abs = |x: &i16| x.abs() as u16;
+	// 1. Calculates the average of pixel values
+	let channels = U::CHANNEL_COUNT as usize;
+	let mut sum_hz = vec![0u64; channels];
+	let mut sum_vr = vec![0u64; channels];
 
-    let (width, height) = img.dimensions();
+	let (width, height) = img.dimensions();
 
-    for y in 0..height - 2 {
-        for x in 0..width - 2 {
-            let mut px_hz: Vec<i16> = vec![0i16; channels];
-            let mut px_vr: Vec<i16> = vec![0i16; channels];
+	for y in 0..height - 2 {
+		for x in 0..width - 2 {
+			let mut px_hz: Vec<i16> = vec![0i16; channels];
+			let mut px_vr: Vec<i16> = vec![0i16; channels];
 
-            let v00 = &pixel_channels(img, x + 0, y + 0);
-            let v01 = &pixel_channels(img, x + 0, y + 1);
-            let v02 = &pixel_channels(img, x + 0, y + 2);
-            let v10 = &pixel_channels(img, x + 1, y + 0);
-            let v12 = &pixel_channels(img, x + 1, y + 2);
-            let v20 = &pixel_channels(img, x + 2, y + 0);
-            let v21 = &pixel_channels(img, x + 2, y + 1);
-            let v22 = &pixel_channels(img, x + 2, y + 2);
+			let v00 = &pixel_channels(img, x + 0, y + 0);
+			let v01 = &pixel_channels(img, x + 0, y + 1);
+			let v02 = &pixel_channels(img, x + 0, y + 2);
+			let v10 = &pixel_channels(img, x + 1, y + 0);
+			let v12 = &pixel_channels(img, x + 1, y + 2);
+			let v20 = &pixel_channels(img, x + 2, y + 0);
+			let v21 = &pixel_channels(img, x + 2, y + 1);
+			let v22 = &pixel_channels(img, x + 2, y + 2);
 
-            // Horizontal
-            add_px(&mut px_hz, v00, -1);
-            add_px(&mut px_hz, v01, -2);
-            add_px(&mut px_hz, v02, -1);
+			// Horizontal
+			add_px(&mut px_hz, v00, -1);
+			add_px(&mut px_hz, v01, -2);
+			add_px(&mut px_hz, v02, -1);
 
-            add_px(&mut px_hz, v20, 1);
-            add_px(&mut px_hz, v21, 2);
-            add_px(&mut px_hz, v22, 1);
+			add_px(&mut px_hz, v20, 1);
+			add_px(&mut px_hz, v21, 2);
+			add_px(&mut px_hz, v22, 1);
 
-            // Vertical
-            add_px(&mut px_vr, v00, -1);
-            add_px(&mut px_vr, v10, -2);
-            add_px(&mut px_vr, v20, -1);
+			// Vertical
+			add_px(&mut px_vr, v00, -1);
+			add_px(&mut px_vr, v10, -2);
+			add_px(&mut px_vr, v20, -1);
 
-            add_px(&mut px_vr, v02, 1);
-            add_px(&mut px_vr, v12, 2);
-            add_px(&mut px_vr, v22, 1);
+			add_px(&mut px_vr, v02, 1);
+			add_px(&mut px_vr, v12, 2);
+			add_px(&mut px_vr, v22, 1);
 
-            add_px(&mut sum_hz, &px_hz.iter().map(abs).collect(), 1);
-            add_px(&mut sum_vr, &px_vr.iter().map(abs).collect(), 1);
-        }
-    }
+			add_px(&mut sum_hz, &px_hz.iter().map(abs).collect(), 1);
+			add_px(&mut sum_vr, &px_vr.iter().map(abs).collect(), 1);
+		}
+	}
 
-    // 3. Normalizes the result to `[0; 1]`
-    let factor = ((width - 2) as u64 * (height - 2) as u64 * BASE_FACTOR) as f32;
-    (
-        sum_hz.iter().sum::<u64>() as f32 / factor,
-        sum_vr.iter().sum::<u64>() as f32 / factor,
-    )
+	// 3. Normalizes the result to `[0; 1]`
+	let factor =
+		((width - 2) as u64 * (height - 2) as u64 * BASE_FACTOR) as f32;
+	(
+		sum_hz.iter().sum::<u64>() as f32 / factor,
+		sum_vr.iter().sum::<u64>() as f32 / factor,
+	)
 }

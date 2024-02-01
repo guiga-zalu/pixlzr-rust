@@ -3,11 +3,11 @@ use anyhow::Result;
 use image::EncodableLayout;
 // use qoi::Error as QOIError;
 use std::{
-    // error::Error,
-    // fmt::{Display, Error as FMTError, Formatter},
-    fs,
-    // io::Error as IOError,
-    path::Path,
+	// error::Error,
+	// fmt::{Display, Error as FMTError, Formatter},
+	fs,
+	// io::Error as IOError,
+	path::Path,
 };
 
 // #[derive(Debug)]
@@ -77,20 +77,20 @@ use std::{
 // }
 
 impl Pixlzr {
-    pub fn open<P>(path: P) -> Result<Pixlzr>
-    where
-        P: AsRef<Path>,
-    {
-        let data = &fs::read(path)?;
-        let pix = Pixlzr::decode_from_vec(data)?;
-        Ok(pix)
-    }
-    pub fn save<P>(&self, path: P) -> Result<()>
-    where
-        P: AsRef<Path>,
-    {
-        let data = self.encode_to_vec_vec()?;
-        fs::write(path, data.as_bytes())?;
-        Ok(())
-    }
+	pub fn open<P>(path: P) -> Result<Pixlzr>
+	where
+		P: AsRef<Path>,
+	{
+		let data = fs::read(path)?;
+		let pix = Pixlzr::decode_from_vec(data)?;
+		Ok(pix)
+	}
+	pub fn save<P>(&self, path: P) -> Result<()>
+	where
+		P: AsRef<Path>,
+	{
+		let data = self.encode_to_vec()?;
+		fs::write(path, data.as_bytes())?;
+		Ok(())
+	}
 }

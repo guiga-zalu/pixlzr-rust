@@ -2,11 +2,10 @@ pub mod constants;
 mod data_types;
 pub mod encoding;
 mod io;
-mod operations;
+pub mod operations;
+#[cfg(feature = "image-rs")]
 mod process;
 mod split;
+// pub mod tests;
 
-pub use image::imageops::FilterType;
-
-pub use crate::{data_types::*, process::*};
-// pub use crate::io::PixlzrError;
+pub use crate::{constants::*, data_types::*, process::*};

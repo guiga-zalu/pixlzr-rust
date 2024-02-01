@@ -3,9 +3,12 @@
 /target
 /emulsion
 /img
-/tests
+/tests/node_modules
 /dst
 *.png
 *.jpg
-!image.png
 *.sh
+!image.png
+!Big-Ruscher.png
+!Big-Ruscher.pix
+!Big-Ruscher.pix.png

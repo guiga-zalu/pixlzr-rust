@@ -1,0 +1,12 @@
+v <= 0.015_625:
+	(down Nearest, up Nearest)
+v in [0.015_625; 0.031_25 ):
+	(down Triangle, up Nearest)
+v in [0.031_25 ; 0.046_875):
+	(down CatmullRom, up Lanczos3)
+v in [0.046_875; 0.062_5  ):
+	(down Lanczos3, up CatmullRom)
+v in [0.062_5  ; 0.703125):
+	(down Lanczos3, up Lanczos3)
+v >= 0.703125:
+	(down Nearest, up Nearest)
