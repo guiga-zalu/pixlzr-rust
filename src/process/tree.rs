@@ -1,3 +1,5 @@
+// TODO: Conferir via clippy
+#![allow(clippy::all, clippy::must_use_candidate, clippy::cast_sign_loss)]
 use crate::{data_types::PixlzrBlock, operations::*};
 
 use crate::split::split_image;
@@ -6,39 +8,42 @@ use image::{
 	imageops::FilterType, DynamicImage, GenericImage, GenericImageView,
 };
 
+macro_rules! dpl {
+	($T:ty) => {
+		($T, $T)
+	};
+}
+
 ///
 ///
 ///
 ///
 /// If threshold is negative, invert the operation
-pub fn process_custom<F0, F1>(
+pub fn process_custom(
 	image: &DynamicImage,
 	threshold: f32,
-	block_width: u32,
-	block_height: u32,
-	mut min_block_width: u32,
-	mut min_block_height: u32,
-	filter_downscale: FilterType,
-	filter_upscale: FilterType,
-	before_average: &F0,
-	after_average: &F1,
-) -> DynamicImage
-where
-	F0: Fn(f32, f32) -> f32,
-	F1: Fn(f32) -> f32,
-{
-	min_block_width = min_block_width.max(4);
-	min_block_height = min_block_height.max(4);
+	block_size: dpl!(u32),
+	min_block_size: dpl!(u32),
+	filters: dpl!(FilterType),
+	before_average: &fn(f32, f32) -> f32,
+	after_average: &fn(f32) -> f32,
+) -> DynamicImage {
+	let (block_width, block_height) = block_size;
+	let min_block_width = min_block_size.0.max(4);
+	let min_block_height = min_block_size.1.max(4);
 	if block_width <= min_block_width || block_height <= min_block_height {
 		return image.clone();
 	}
 	let is_positive = threshold >= 0.0;
 	let threshold = threshold.abs();
+
+	let (filter_downscale, filter_upscale) = filters;
+
 	// New image
 	let mut output =
 		DynamicImage::new_rgba8(image.width(), image.height());
 	// For each splitten block
-	for section in split_image(&image, block_width, block_height) {
+	for section in split_image(image, block_width, block_height) {
 		// Get the block and it's dimensions
 		let block: DynamicImage = match section.block {
 			PixlzrBlock::Image(section) => section.data,
@@ -59,12 +64,9 @@ where
 			process_custom(
 				&block,
 				threshold,
-				block_width >> 1,
-				block_height >> 1,
-				min_block_width,
-				min_block_height,
-				filter_downscale,
-				filter_upscale,
+				(block_width >> 1, block_height >> 1),
+				(min_block_width, min_block_height),
+				(filter_downscale, filter_upscale),
 				before_average,
 				after_average,
 			)
@@ -85,20 +87,18 @@ pub fn process(
 	block_size: u32,
 	threshold: f32,
 ) -> DynamicImage {
-	let before_average = |x: f32, avg: f32| (x - avg).abs();
+	let before_average: fn(f32, f32) -> f32 =
+		|x: f32, avg: f32| (x - avg).abs();
 	// |x, avg| (x - avg).pow(2)
-	let after_average = |x: f32| x;
+	let after_average: fn(f32) -> f32 = |x: f32| x;
 	// |x| x.sqrt()
 
 	process_custom(
 		image,
 		threshold,
-		block_size,
-		block_size,
-		4,
-		4,
-		FilterType::Lanczos3,
-		FilterType::Nearest,
+		(block_size, block_size),
+		(4, 4),
+		(FilterType::Lanczos3, FilterType::Nearest),
 		&before_average,
 		&after_average,
 	)

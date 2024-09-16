@@ -18,6 +18,11 @@ pub struct ImageBlockIterator<'a> {
 }
 
 impl<'a> ImageBlockIterator<'a> {
+	#[allow(
+		clippy::cast_sign_loss,
+		clippy::cast_possible_truncation,
+		clippy::cast_lossless
+	)]
 	pub fn new(
 		image: &'a DynamicImage,
 		bwidth: u32,
@@ -28,9 +33,9 @@ impl<'a> ImageBlockIterator<'a> {
 			bwidth,
 			bheight,
 			image,
-			horizontal_blocks: (image_width as f32 / bwidth as f32).ceil()
+			horizontal_blocks: (image_width as f64 / bwidth as f64).ceil()
 				as u32,
-			vertical_blocks: (image_height as f32 / bheight as f32).ceil()
+			vertical_blocks: (image_height as f64 / bheight as f64).ceil()
 				as u32,
 			curr_x: 0,
 			curr_y: 0,

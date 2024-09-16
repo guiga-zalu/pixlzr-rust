@@ -48,7 +48,7 @@ impl Pixlzr {
 		);
 
 		let mut image =
-			Bytes::new(vec![0; PIXLZR_HEADER_SIZE + (rows * 4) as usize]);
+			Bytes::new(vec![0; PIXLZR_HEADER_SIZE + (rows * 4)]);
 
 		// Start encoding with the header
 		image.write_slice(PIXLZR_MAGIC_NUMBERS);
@@ -78,7 +78,7 @@ impl Pixlzr {
 		};
 
 		// For each line, write its size
-		(0..rows).into_iter().for_each(|row| {
+		(0..rows).for_each(|row| {
 			let idx = row * cols;
 			let sum: usize = block_lengths[idx..(idx + cols)].iter().sum();
 			image.write_u32(sum as u32);
@@ -101,9 +101,9 @@ impl Pixlzr {
 		// Get header info
 		assert_eq!(
 			PIXLZR_MAGIC_NUMBERS,
-			&reader
+			reader
 				.read_slice(PIXLZR_MAGIC_NUMBERS.len())
-				.expect(ERR_ENDED_TOO_SOON)[..]
+				.expect(ERR_ENDED_TOO_SOON)
 		);
 		let version: Semver =
 			reader.read_slice(3).expect(ERR_ENDED_TOO_SOON).into();
@@ -125,7 +125,7 @@ impl Pixlzr {
 		// In the form `(start, end)[]`
 		let line_positions: Vec<(usize, usize)> = {
 			let line_sizes: Vec<u32> =
-				(0..rows).into_iter().map(|_| reader.read_u32()).collect();
+				(0..rows).map(|_| reader.read_u32()).collect();
 
 			let line_positions: Vec<(usize, usize)> = line_sizes
 				.iter()
@@ -150,7 +150,6 @@ impl Pixlzr {
 
 				// For each block
 				(0..cols)
-					.into_iter()
 					.map(|_| {
 						PixlzrBlock::from(decode_block(&mut view).unwrap())
 					})
@@ -174,7 +173,12 @@ fn encode_block(block: &crate::PixlzrBlock) -> (Bytes, usize) {
 
 	// Writes PIXLZR_BLOCK magic numbers
 	output.write_slice(PIXLZR_BLOCK_MAGIC_NUMBERS);
-	output.write_f32(block.block_value().unwrap());
+	output.write_f32(if let Some(value) = block.block_value() {
+		value
+	} else {
+		// TODO: deal with an absent block value
+		0.
+	});
 
 	// Create an QOI Encoder
 	let encoder = {
@@ -193,7 +197,7 @@ fn encode_block(block: &crate::PixlzrBlock) -> (Bytes, usize) {
 	// Writes the length of the QOI block
 	output.write_u32(len as u32);
 	// Writes the QOI block
-	output.write_slice(&encoded);
+	output.write_slice(encoded);
 
 	(output, PIXLZR_BLOCK_HEADER_BASE_SIZE + len)
 }
@@ -203,9 +207,9 @@ fn decode_block(reader: &mut Bytes) -> Result_QOI<PixlzrBlockImage> {
 	// Checks for the header's magic numbers
 	assert_eq!(
 		PIXLZR_BLOCK_MAGIC_NUMBERS,
-		&reader
+		reader
 			.read_slice(PIXLZR_BLOCK_MAGIC_NUMBERS.len())
-			.expect(ERR_ENDED_TOO_SOON)[..]
+			.expect(ERR_ENDED_TOO_SOON)
 	);
 
 	// Get block value

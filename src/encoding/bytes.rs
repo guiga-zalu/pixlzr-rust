@@ -1,3 +1,4 @@
+#![allow(clippy::uninit_vec)]
 use super::Raw;
 
 macro_rules! safe_copy {
@@ -66,9 +67,7 @@ impl Bytes {
 	/// Creates a new `Bytes` object with an empty `data` vector,
 	///  with a pre-reserved capacity to hold `length` elements.
 	pub fn reserve(length: usize) -> Self {
-		let mut data = Vec::new();
-		data.reserve(length);
-		Self::new(data)
+		Self::new(Vec::with_capacity(length))
 	}
 
 	/// Creates a new `Bytes` object with an empty `data` vector,

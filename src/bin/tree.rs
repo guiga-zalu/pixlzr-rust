@@ -3,9 +3,10 @@ use image::{open, DynamicImage};
 #[cfg(feature = "image-rs")]
 fn processar(imagem: &DynamicImage, k: f32) -> DynamicImage {
 	use pixlzr::tree::process as tree;
-	tree(&imagem, 128, k)
+	tree(imagem, 128, k)
 }
 
+#[allow(clippy::cast_lossless)]
 fn main() {
 	// let block_size: u32 = 128;
 	// processar_pasta("./img");

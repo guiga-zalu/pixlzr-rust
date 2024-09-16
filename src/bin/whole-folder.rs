@@ -1,3 +1,13 @@
+// TODO: Conferir via clippy
+#![allow(
+	clippy::all,
+	clippy::must_use_candidate,
+	clippy::cast_sign_loss,
+	clippy::cast_precision_loss,
+	clippy::cast_possible_truncation,
+	clippy::module_name_repetitions
+)]
+// #![allow(clippy::cast_sign_loss, clippy::cast_possible_truncation)]
 use anyhow::Result;
 #[cfg(feature = "image-rs")]
 use image::open;
@@ -21,7 +31,7 @@ mod path {
 	}
 	impl AsRef<Path> for ZPath {
 		fn as_ref(&self) -> &Path {
-			&self.buf.as_path()
+			self.buf.as_path()
 		}
 	}
 	impl<P: AsRef<Path>> Add<P> for ZPath {
@@ -32,6 +42,8 @@ mod path {
 			}
 		}
 	}
+	#[allow(clippy::suspicious_arithmetic_impl)]
+	#[allow(clippy::suspicious_arithmetic_impl)]
 	impl<P: AsRef<Path>> Div<P> for ZPath {
 		type Output = ZPath;
 		fn div(self, rhs: P) -> Self::Output {
@@ -44,7 +56,8 @@ mod path {
 			(*self).clone() + rhs
 		}
 	}
-	impl<'a, P: AsRef<Path>> Div<P> for &ZPath {
+	#[allow(clippy::suspicious_arithmetic_impl)]
+	impl<P: AsRef<Path>> Div<P> for &ZPath {
 		type Output = ZPath;
 		fn div(self, rhs: P) -> Self::Output {
 			(*self).clone() + rhs
@@ -59,8 +72,7 @@ fn main() -> Result<()> {
 
 	let mut entries: Vec<_> = fs::read_dir(images_folder)?
 		.map(|res| res.map(|e| e.path()))
-		.filter(|e| e.is_ok())
-		.map(|e| e.unwrap())
+		.filter_map(Result::ok)
 		.collect();
 
 	entries.sort();
@@ -83,9 +95,9 @@ fn main() -> Result<()> {
 		fs::create_dir_all(&out_folder)?;
 
 		println!(
-            "Folders {:?} and {:?} assured for parameters (bs = {}, k = {})",
-            &pix_folder, &out_folder, block_size, k
-        );
+			"Folders {:?} and {:?} assured for parameters (bs = {}, k = {})",
+			&pix_folder, &out_folder, block_size, k
+		);
 		// For each image
 		for path_in in entries.clone() {
 			let file_stem = path_in.file_stem().unwrap().to_str().unwrap();
@@ -115,12 +127,12 @@ fn each_image(
 	// println!("Reading [{}] -> [{}]", path_in, path_pix);
 	let _pix = &match write(path_in, path_pix, factor, block_size) {
 		Ok(pix) => pix,
-		Err(err) => panic!("{:?}", err),
+		Err(err) => panic!("{err:?}"),
 	};
 	// println!("Reading [{}] -> [{}]", path_pix, path_out);
 	match read(path_pix, path_out /* , pix */) {
-		Ok(_) => (),
-		Err(err) => panic!("{:?}", err),
+		Ok(()) => (),
+		Err(err) => panic!("{err:?}"),
 	};
 }
 #[inline]
@@ -133,7 +145,7 @@ fn write(
 	let img = open(path_in)?;
 	let mut pix = Pixlzr::from_image(&img, block_size, block_size);
 
-	pix.shrink_by(FilterType::Nearest.into(), factor);
+	pix.shrink_by(FilterType::Nearest, factor);
 
 	pix.save(path_out)?;
 	Ok(pix)
@@ -145,7 +157,7 @@ fn read(
 	path_out: &str, /* , pix: &Pixlzr */
 ) -> Result<()> {
 	let pix = Pixlzr::open(path_in)?;
-	let img = pix.to_image(FilterType::Nearest.into());
+	let img = pix.to_image(FilterType::Nearest);
 	img.save(path_out)?;
 	Ok(())
 }

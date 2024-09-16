@@ -73,16 +73,12 @@ impl Pixlzr {
 		}
 	}
 
-	pub fn par_lines<'a>(
-		&'a self,
-	) -> rayon::slice::ChunksExact<'a, PixlzrBlock> {
+	pub fn par_lines(&self) -> rayon::slice::ChunksExact<PixlzrBlock> {
 		self.blocks
 			.par_chunks_exact(self.block_grid_width() as usize)
 	}
 
-	pub fn lines<'a>(
-		&'a self,
-	) -> std::slice::ChunksExact<'a, PixlzrBlock> {
+	pub fn lines(&self) -> std::slice::ChunksExact<PixlzrBlock> {
 		self.blocks.chunks_exact(self.block_grid_width() as usize)
 	}
 }
@@ -182,7 +178,7 @@ impl Pixlzr {
 					);
 					let reduced = reduce_image_section(
 						(value, value),
-						&img,
+						img,
 						filter_downscale,
 					);
 					debug_assert_eq!(reduced.width, reduced.data.width());
@@ -225,7 +221,7 @@ impl Pixlzr {
 				let value = get_block_variance_by_directions(img);
 				let reduced = reduce_image_section(
 					(value.0 * factor, value.1 * factor),
-					&img,
+					img,
 					filter_downscale,
 				);
 				debug_assert_eq!(reduced.width, reduced.data.width());

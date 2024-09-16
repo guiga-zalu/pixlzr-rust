@@ -19,11 +19,11 @@ impl Semver {
 
 impl Ord for Semver {
 	fn cmp(&self, other: &Self) -> Ordering {
-		let m = (&self.major).cmp(&other.major);
+		let m = self.major.cmp(&other.major);
 		if m.is_eq() {
-			let m = (&self.minor).cmp(&other.minor);
+			let m = self.minor.cmp(&other.minor);
 			if m.is_eq() {
-				(&self.patch).cmp(&other.patch)
+				self.patch.cmp(&other.patch)
 			} else {
 				m
 			}
