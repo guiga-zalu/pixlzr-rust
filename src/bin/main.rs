@@ -2,9 +2,9 @@ use anyhow::{Context, Result};
 use clap::Parser;
 use image::open;
 use pixlzr::{FilterType, Pixlzr};
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
-#[derive(Parser, Debug)]
+#[derive(Parser, Debug, Default)]
 #[command(author, version, about, long_about = None)]
 pub struct CliArgs {
 	// Files
@@ -48,9 +48,9 @@ fn parse_shrinking_factor(shrinking_factor: &str) -> f32 {
 	let mut base_pos: usize = 0;
 	let mut invert = false;
 	let mut is_negative = false;
-	if shrinking_factor[base_pos..].starts_with("+") {
+	if shrinking_factor[base_pos..].starts_with('+') {
 		base_pos += 1;
-	} else if shrinking_factor[base_pos..].starts_with("-") {
+	} else if shrinking_factor[base_pos..].starts_with('-') {
 		is_negative = true;
 		base_pos += 1;
 	}
@@ -131,11 +131,11 @@ fn run(
 	}
 }
 
-const IMG_OPEN_ERROR: &'static str = "Could not open the image";
-const IMG_SAVE_ERROR: &'static str = "Could not save the image";
+const IMG_OPEN_ERROR: &str = "Could not open the image";
+const IMG_SAVE_ERROR: &str = "Could not save the image";
 
 #[inline]
-fn format_file_error<'a>(base: &str, file: &PathBuf) -> String {
+fn format_file_error(base: &str, file: &Path) -> String {
 	format!("{} [ {} ]", base, file.to_str().unwrap())
 }
 
@@ -148,21 +148,25 @@ fn image_to_pix(
 		filter,
 		direction_wise,
 		shrinking_factor: _,
-		force: _,
+		force,
 	}: CliArgs,
 	shrink_by: f32,
 ) -> Result<()> {
 	let img = open(&input)
 		.with_context(|| format_file_error(IMG_OPEN_ERROR, &input))?;
 
-	let mut pix =
-		Pixlzr::from_image(&img, block_width, block_height.unwrap());
+	let mut pix = Pixlzr::from_image(
+		&img,
+		block_width,
+		block_height.unwrap_or(block_width),
+	);
 
-	let filter = filter.into();
-	if direction_wise.unwrap() {
-		pix.shrink_directionally(filter, shrink_by);
-	} else {
-		pix.shrink_by(filter, shrink_by);
+	if force {
+		if direction_wise.unwrap() {
+			pix.shrink_directionally(filter, shrink_by);
+		} else {
+			pix.shrink_by(filter, shrink_by);
+		}
 	}
 
 	pix.save(&output)
@@ -186,10 +190,12 @@ fn image_to_image(
 	let img = open(&input)
 		.with_context(|| format_file_error(IMG_OPEN_ERROR, &input))?;
 
-	let mut pix =
-		Pixlzr::from_image(&img, block_width, block_height.unwrap());
+	let mut pix = Pixlzr::from_image(
+		&img,
+		block_width,
+		block_height.unwrap_or(block_width),
+	);
 
-	let filter = filter.into();
 	if force {
 		if direction_wise.unwrap() {
 			pix.shrink_directionally(filter, shrink_by);
@@ -210,7 +216,6 @@ fn pix_to_image(args: &CliArgs, shrink_by: f32) -> Result<()> {
 		.with_context(|| format_file_error(IMG_OPEN_ERROR, &args.input))?;
 
 	if args.force {
-		let filter = filter.into();
 		if args.direction_wise.unwrap() {
 			pix.shrink_directionally(filter, shrink_by);
 		} else {
@@ -218,7 +223,7 @@ fn pix_to_image(args: &CliArgs, shrink_by: f32) -> Result<()> {
 		}
 	}
 
-	let img = pix.to_image(filter.into());
+	let img = pix.to_image(filter);
 	img.save(&args.output).with_context(|| {
 		format_file_error(IMG_SAVE_ERROR, &args.output)
 	})?;
@@ -238,17 +243,15 @@ fn pix_to_pix(
 	}: CliArgs,
 	shrink_by: f32,
 ) -> Result<()> {
-	let filter = filter.into();
 	let mut pix = Pixlzr::from_image(
 		&Pixlzr::open(&input)
 			.with_context(|| format_file_error(IMG_OPEN_ERROR, &input))?
 			.to_image(filter),
 		block_width,
-		block_height.unwrap(),
+		block_height.unwrap_or(block_width),
 	);
 
 	if force {
-		let filter = filter.into();
 		if direction_wise.unwrap() {
 			pix.shrink_directionally(filter, shrink_by);
 		} else {
@@ -259,4 +262,96 @@ fn pix_to_pix(
 	pix.save(&output)
 		.with_context(|| format_file_error(IMG_SAVE_ERROR, &output))?;
 	Ok(())
+}
+
+mod tests_on_binary {
+	use image::GenericImageView;
+
+	use super::*;
+
+	#[allow(dead_code)]
+	fn compare_images(path_orig: &PathBuf, path_new: &PathBuf) {
+		let orig = open(path_orig).unwrap();
+		let new = open(path_new).unwrap();
+		assert_eq!(orig.dimensions(), new.dimensions());
+		assert!(orig.as_bytes() == new.as_bytes());
+	}
+
+	#[test]
+	fn test_cli_parse_shrinking_factor() {
+		assert_eq!(parse_shrinking_factor("+1"), 1.0);
+		assert_eq!(parse_shrinking_factor("-1"), -1.0);
+		assert_eq!(parse_shrinking_factor("+1/2"), 0.5);
+		assert_eq!(parse_shrinking_factor("-1/2"), -0.5);
+		assert_eq!(parse_shrinking_factor("2"), 2.0);
+		assert_eq!(parse_shrinking_factor("-2"), -2.0);
+	}
+
+	#[test]
+	fn test_cli_parse_shrinking_factor_error() {
+		assert_eq!(parse_shrinking_factor("1/"), DEFAULT_SHRINKING_FACTOR);
+		assert_eq!(
+			parse_shrinking_factor("1/2/"),
+			DEFAULT_SHRINKING_FACTOR
+		);
+	}
+
+	#[test]
+	fn test_image_to_image() {
+		let path_orig: PathBuf = "image.png".into();
+		let path_new: PathBuf = "test_image.png".into();
+		assert!(image_to_image(
+			CliArgs {
+				input: path_orig.clone(),
+				output: path_new.clone(),
+				force: false,
+				block_width: 8,
+				..Default::default()
+			},
+			0.0
+		)
+		.is_ok());
+
+		compare_images(&path_orig, &path_new);
+		std::fs::remove_file(path_new).unwrap();
+	}
+
+	#[test]
+	fn test_image_to_pix_to_image() {
+		let path_orig: PathBuf = "image.png".into();
+		let path_pix: PathBuf = "image.pix".into();
+		let path_new: PathBuf = "test_image_from_pix.png".into();
+
+		let res = image_to_pix(
+			CliArgs {
+				input: path_orig.clone(),
+				output: path_pix.clone(),
+				force: false,
+				block_width: 64,
+				..Default::default()
+			},
+			0.0,
+		);
+		assert!(res.is_ok(), "Intermediate `.pix` image not created");
+		println!("Intermediate `.pix` image created");
+
+		let res = pix_to_image(
+			&CliArgs {
+				input: path_pix.clone(),
+				output: path_new.clone(),
+				force: false,
+				block_width: 64,
+				..Default::default()
+			},
+			0.0,
+		);
+		assert!(res.is_ok(), "Intermediate `.png` image not created");
+		println!("Intermediate `.png` image created");
+
+		std::fs::remove_file(path_pix).unwrap();
+
+		compare_images(&path_orig, &path_new);
+
+		std::fs::remove_file(path_new).unwrap();
+	}
 }
