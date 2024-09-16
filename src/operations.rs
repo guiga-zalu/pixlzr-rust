@@ -1,4 +1,14 @@
+#![allow(
+	clippy::cast_precision_loss,
+	clippy::cast_possible_truncation,
+	clippy::cast_lossless,
+	clippy::cast_sign_loss
+)]
 use core::ops::{AddAssign, Mul};
+
+#[cfg(feature = "fir")]
+#[cfg(feature = "image-rs")]
+use image::ColorType;
 
 #[cfg(feature = "image-rs")]
 use crate::data_types::PixlzrBlockImage;
@@ -82,7 +92,6 @@ where
 	after((delta[0] + delta[1] + delta[2] + delta[3]) / factor)
 }
 
-#[inline(always)]
 fn parse_value(value: f32) -> f32 {
 	if value.is_sign_positive() {
 		return value;
@@ -96,6 +105,86 @@ fn parse_value(value: f32) -> f32 {
 }
 
 #[cfg(feature = "image-rs")]
+#[cfg(feature = "fir")]
+fn image_resize(
+	img: &DynamicImage,
+	width: u32,
+	height: u32,
+	filter: FilterType,
+) -> DynamicImage {
+	use fast_image_resize::{
+		images::Image, FilterType as FIR_FilterType, PixelType, ResizeAlg,
+		ResizeOptions, Resizer,
+	};
+	use image::ImageBuffer;
+
+	let mut dst_image = Image::new(width, height, PixelType::U8x4);
+
+	let upscale = width > img.width() || height > img.height();
+	let multiplicity = 2;
+
+	let resize_alg = match filter {
+		FilterType::Nearest => ResizeAlg::Nearest,
+		f if upscale => match f {
+			FilterType::Triangle => ResizeAlg::SuperSampling(
+				FIR_FilterType::Bilinear,
+				multiplicity,
+			),
+			FilterType::Lanczos3 => ResizeAlg::SuperSampling(
+				FIR_FilterType::Lanczos3,
+				multiplicity,
+			),
+			FilterType::Gaussian => ResizeAlg::SuperSampling(
+				FIR_FilterType::Gaussian,
+				multiplicity,
+			),
+			FilterType::CatmullRom => ResizeAlg::SuperSampling(
+				FIR_FilterType::CatmullRom,
+				multiplicity,
+			),
+			_ => unreachable!(),
+		},
+		f => match f {
+			FilterType::Triangle => {
+				ResizeAlg::Convolution(FIR_FilterType::Hamming)
+			}
+			FilterType::Lanczos3 => {
+				ResizeAlg::Convolution(FIR_FilterType::Lanczos3)
+			}
+			FilterType::Gaussian => {
+				ResizeAlg::Convolution(FIR_FilterType::Gaussian)
+			}
+			FilterType::CatmullRom => {
+				ResizeAlg::Convolution(FIR_FilterType::CatmullRom)
+			}
+			_ => unreachable!(),
+		},
+	};
+
+	let mut resizer = Resizer::new();
+	let mut bytes = img.as_bytes().to_owned();
+	resizer
+		.resize(
+			&Image::from_slice_u8(
+				img.width(),
+				img.height(),
+				&mut bytes,
+				PixelType::U8x4,
+			)
+			.unwrap(),
+			&mut dst_image,
+			&ResizeOptions::new().resize_alg(resize_alg),
+		)
+		.unwrap();
+
+	DynamicImage::ImageRgba8(
+		ImageBuffer::from_raw(width, height, dst_image.into_vec())
+			.unwrap(),
+	)
+}
+
+#[cfg(feature = "image-rs")]
+#[cfg(not(feature = "fir"))]
 fn image_resize(
 	img: &DynamicImage,
 	width: u32,
@@ -104,6 +193,16 @@ fn image_resize(
 ) -> DynamicImage {
 	img.resize_exact(width, height, filter)
 }
+
+// #[cfg(feature = "image-rs")]
+// #[cfg(feature = "fir")]
+// fn image_resize(
+// 	img: &DynamicImage,
+// 	width: u32,
+// 	height: u32,
+// 	filter: FilterType,
+// ) -> DynamicImage {
+// }
 
 #[cfg(feature = "image-rs")]
 pub fn reduce_image_section(
@@ -116,8 +215,8 @@ pub fn reduce_image_section(
 	let level_hz = value.0.log2().round().min(0f32).exp2();
 	let level_vr = value.1.log2().round().min(0f32).exp2();
 	let (width, height) = block.dimensions();
-	let width = (width as f32 * level_hz).max(1f32).ceil() as u32;
-	let height = (height as f32 * level_vr).max(1f32).ceil() as u32;
+	let width = (width as f64 * level_hz as f64).max(1f64).ceil() as u32;
+	let height = (height as f64 * level_vr as f64).max(1f64).ceil() as u32;
 	// Resizes the image down
 	PixlzrBlockImage {
 		width,
@@ -128,14 +227,15 @@ pub fn reduce_image_section(
 }
 
 #[inline]
-fn add_px<T, U>(acc: &mut Vec<T>, value: &Vec<U>, k: T)
+#[allow(clippy::semicolon_if_nothing_returned)]
+fn add_px<T, U>(acc: &mut [T], value: &Vec<U>, k: T)
 where
 	T: AddAssign<T> + From<U> + Mul<T, Output = T> + Copy,
 	U: Copy,
 {
-	acc.iter_mut().zip(value).for_each(|(el, v)| {
-		*el += T::from(*v) * k;
-	})
+	acc.iter_mut()
+		.zip(value)
+		.for_each(|(el, v)| *el += T::from(*v) * k)
 }
 
 const BASE_FACTOR: u64 = (2 << 11) as u64;
@@ -151,6 +251,7 @@ where
 }
 
 #[cfg(feature = "image-rs")]
+#[allow(clippy::identity_op)]
 /// Calculates a `[0; 1]` value for the pixel variance of a given `img` image
 ///
 /// 1. Calculates the average of pixel values
@@ -161,7 +262,7 @@ where
 	T: GenericImageView<Pixel = U>,
 	U: Pixel<Subpixel = u8>,
 {
-	let abs = |x: &i16| x.abs() as u16;
+	let abs = |x: &i16| x.unsigned_abs();
 	// 1. Calculates the average of pixel values
 	let channels = U::CHANNEL_COUNT as usize;
 	let mut sum_hz = vec![0u64; channels];
@@ -208,9 +309,9 @@ where
 
 	// 3. Normalizes the result to `[0; 1]`
 	let factor =
-		((width - 2) as u64 * (height - 2) as u64 * BASE_FACTOR) as f32;
+		((width - 2) as u64 * (height - 2) as u64 * BASE_FACTOR) as f64;
 	(
-		sum_hz.iter().sum::<u64>() as f32 / factor,
-		sum_vr.iter().sum::<u64>() as f32 / factor,
+		(sum_hz.iter().sum::<u64>() as f64 / factor) as f32,
+		(sum_vr.iter().sum::<u64>() as f64 / factor) as f32,
 	)
 }
