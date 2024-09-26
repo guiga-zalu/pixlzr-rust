@@ -1,12 +1,10 @@
 // TODO: Conferir via clippy
 #![allow(clippy::all, clippy::must_use_candidate, clippy::cast_sign_loss)]
-use crate::{data_types::PixlzrBlock, operations::*};
+use crate::{data_types::block::PixlzrBlockImage, operations::*};
 
 use crate::split::split_image;
 
-use image::{
-	imageops::FilterType, DynamicImage, GenericImage, GenericImageView,
-};
+use image::{imageops::FilterType, DynamicImage, GenericImage};
 
 macro_rules! dpl {
 	($T:ty) => {
@@ -45,11 +43,8 @@ pub fn process_custom(
 	// For each splitten block
 	for section in split_image(image, block_width, block_height) {
 		// Get the block and it's dimensions
-		let block: DynamicImage = match section.block {
-			PixlzrBlock::Image(section) => section.data,
-			_ => panic!(),
-		};
 		let (x, y) = (section.x, section.y);
+		let block = section.block;
 		let (w0, h0) = block.dimensions();
 		// Calculate the value
 		let value =
@@ -57,12 +52,18 @@ pub fn process_custom(
 		// Post-process the value
 		let img = if (value >= threshold) ^ is_positive {
 			// Calculate the resize level and dimensions
-			reduce_image_section((value, value), &block, filter_downscale)
-				.data
-				.resize(w0, h0, filter_upscale)
+			PixlzrBlockImage::from(
+				reduce_image_section(
+					(value, value),
+					&block,
+					filter_downscale,
+				)
+				.resize(w0, h0, filter_upscale),
+			)
+			.data
 		} else {
 			process_custom(
-				&block,
+				&PixlzrBlockImage::from(block.clone()).data,
 				threshold,
 				(block_width >> 1, block_height >> 1),
 				(min_block_width, min_block_height),

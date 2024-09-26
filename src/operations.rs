@@ -4,75 +4,40 @@
 	clippy::cast_lossless,
 	clippy::cast_sign_loss
 )]
+
+/// image_resize:
+/// - image-rs, fir:
+///   (img: &DynamicImage, ...) -> DynamicImage
+/// - image-rs, !fir:
+///   (img: &DynamicImage, ...) -> DynamicImage
+/// - !image-rs, fir:
+///   (img: &PixlzrBlock, ...) -> PixlzrBlock
+/// - !image-rs, !fir:
+///   panic!
 use core::ops::{AddAssign, Mul};
 
-#[cfg(feature = "fir")]
-#[cfg(feature = "image-rs")]
-use image::ColorType;
+use crate::data_types::PixlzrBlock;
 
 #[cfg(feature = "image-rs")]
-use crate::data_types::PixlzrBlockImage;
-#[cfg(feature = "image-rs")]
-use image::{
-	imageops::FilterType, DynamicImage, GenericImageView, Pixel,
-	Primitive, Rgba,
-};
-#[cfg(feature = "image-rs")]
-use palette::{IntoColor, Oklaba, Srgba};
+use image::{imageops::FilterType, GenericImageView, Pixel, Primitive};
+use palette::{IntoColor, Oklab, Oklaba, Srgb, Srgba};
 
-#[cfg(feature = "image-rs")]
+// #[cfg(not(feature = "image-rs"))]
+/// TODO: Support for PixlzrBlock instead of DynamicImage
 /// Calculates a `[0; 1]` value for the pixel variance of a given `img` image
 ///
 /// 1. Calculates the average of pixel values
 /// 2. Calculates the total difference of these values
 /// 3. Normalizes the result to `[0; 1]`
-pub fn get_block_variance<T, F0, F1>(
-	img: &T,
+pub fn get_block_variance<F0, F1>(
+	block: &PixlzrBlock,
 	before: &F0,
 	after: &F1,
 ) -> f32
 where
-	T: GenericImageView<Pixel = Rgba<u8>>,
 	F0: Fn(f32, f32) -> f32,
 	F1: Fn(f32) -> f32,
 {
-	// 1. Calculates the average of pixel values
-	let (average, count) = {
-		let mut sum = [0.; 4];
-		for (.., pixel) in img.pixels() {
-			let color: Oklaba<f32> =
-				Srgba::new(pixel.0[0], pixel.0[1], pixel.0[2], pixel.0[3])
-					.into_linear()
-					.into_color();
-			sum[0] += color.a;
-			sum[1] += color.b;
-			sum[2] += color.l;
-			sum[3] += color.alpha;
-		}
-		let count = (img.width() * img.height()) as f32;
-		sum[0] /= count;
-		sum[1] /= count;
-		sum[2] /= count;
-		sum[3] /= count;
-		(sum, count)
-	};
-
-	// 2. Calculates the total difference between these values
-	let delta = {
-		let mut delta = [0.; 4];
-		for (.., pixel) in img.pixels() {
-			let color: Oklaba<f32> =
-				Srgba::new(pixel.0[0], pixel.0[1], pixel.0[2], pixel.0[3])
-					.into_linear()
-					.into_color();
-			delta[0] += before(color.a, average[0]);
-			delta[1] += before(color.b, average[1]);
-			delta[2] += before(color.l, average[2]);
-			delta[3] += before(color.alpha, average[3]);
-		}
-		delta
-	};
-	// 3. Normalizes the result to `[0; 1]`
 	/*
 	- $p_{i, j}$: pixel at position $i, j$
 	- $W, H$: image's width and height
@@ -87,9 +52,83 @@ where
 	So $\bar p = {M\over 2}$ and $\delta_{i, j} = {M\over 2}$.
 	Thus, $\int\delta = W\cdot H\times \delta_{i, j} = {W\cdot H\cdot M\over 2}$.
 	cont := W * H
-	 */
-	let factor = count;
-	after((delta[0] + delta[1] + delta[2] + delta[3]) / factor)
+	*/
+	// 1. Calculates the average of pixel values
+	let count = (block.width() * block.height()) as f32;
+	if block.has_alpha() {
+		let (average, count) = {
+			let mut sum = [0.; 4];
+			for pixel in block.pixels() {
+				let color: Oklaba<f32> =
+					Srgba::new(pixel[0], pixel[1], pixel[2], pixel[3])
+						.into_linear()
+						.into_color();
+				sum[0] += color.a;
+				sum[1] += color.b;
+				sum[2] += color.l;
+				sum[3] += color.alpha;
+			}
+			sum[0] /= count;
+			sum[1] /= count;
+			sum[2] /= count;
+			sum[3] /= count;
+			(sum, count)
+		};
+
+		// 2. Calculates the total difference between these values
+		let delta = {
+			let mut delta = [0.; 4];
+			for pixel in block.pixels() {
+				let color: Oklaba<f32> =
+					Srgba::new(pixel[0], pixel[1], pixel[2], pixel[3])
+						.into_linear()
+						.into_color();
+				delta[0] += before(color.a, average[0]);
+				delta[1] += before(color.b, average[1]);
+				delta[2] += before(color.l, average[2]);
+				delta[3] += before(color.alpha, average[3]);
+			}
+			delta
+		};
+		// 3. Normalizes the result to `[0; 1]`
+		let factor = count;
+		after((delta[0] + delta[1] + delta[2] + delta[3]) / factor)
+	} else {
+		let (average, count) = {
+			let mut sum = [0.; 3];
+			for pixel in block.pixels() {
+				let color: Oklab<f32> =
+					Srgb::new(pixel[0], pixel[1], pixel[2])
+						.into_linear()
+						.into_color();
+				sum[0] += color.a;
+				sum[1] += color.b;
+				sum[2] += color.l;
+			}
+			sum[0] /= count;
+			sum[1] /= count;
+			sum[2] /= count;
+			(sum, count)
+		};
+
+		// 2. Calculates the total difference between these values
+		let delta = {
+			let mut delta = [0.; 3];
+			for pixel in block.pixels() {
+				let color: Oklab<f32> =
+					Srgb::new(pixel[0], pixel[1], pixel[2])
+						.into_linear()
+						.into_color();
+				delta[0] += before(color.a, average[0]);
+				delta[1] += before(color.b, average[1]);
+				delta[2] += before(color.l, average[2]);
+			}
+			delta
+		};
+		// 3. Normalizes the result to `[0; 1]`
+		let factor = count;
+		after((delta[0] + delta[1] + delta[2]) / factor)
+	}
 }
 
 fn parse_value(value: f32) -> f32 {
@@ -104,112 +143,11 @@ fn parse_value(value: f32) -> f32 {
 	}
 }
 
-#[cfg(feature = "image-rs")]
-#[cfg(feature = "fir")]
-fn image_resize(
-	img: &DynamicImage,
-	width: u32,
-	height: u32,
-	filter: FilterType,
-) -> DynamicImage {
-	use fast_image_resize::{
-		images::Image, FilterType as FIR_FilterType, PixelType, ResizeAlg,
-		ResizeOptions, Resizer,
-	};
-	use image::ImageBuffer;
-
-	let mut dst_image = Image::new(width, height, PixelType::U8x4);
-
-	let upscale = width > img.width() || height > img.height();
-	let multiplicity = 2;
-
-	let resize_alg = match filter {
-		FilterType::Nearest => ResizeAlg::Nearest,
-		f if upscale => match f {
-			FilterType::Triangle => ResizeAlg::SuperSampling(
-				FIR_FilterType::Bilinear,
-				multiplicity,
-			),
-			FilterType::Lanczos3 => ResizeAlg::SuperSampling(
-				FIR_FilterType::Lanczos3,
-				multiplicity,
-			),
-			FilterType::Gaussian => ResizeAlg::SuperSampling(
-				FIR_FilterType::Gaussian,
-				multiplicity,
-			),
-			FilterType::CatmullRom => ResizeAlg::SuperSampling(
-				FIR_FilterType::CatmullRom,
-				multiplicity,
-			),
-			_ => unreachable!(),
-		},
-		f => match f {
-			FilterType::Triangle => {
-				ResizeAlg::Convolution(FIR_FilterType::Hamming)
-			}
-			FilterType::Lanczos3 => {
-				ResizeAlg::Convolution(FIR_FilterType::Lanczos3)
-			}
-			FilterType::Gaussian => {
-				ResizeAlg::Convolution(FIR_FilterType::Gaussian)
-			}
-			FilterType::CatmullRom => {
-				ResizeAlg::Convolution(FIR_FilterType::CatmullRom)
-			}
-			_ => unreachable!(),
-		},
-	};
-
-	let mut resizer = Resizer::new();
-	let mut bytes = img.as_bytes().to_owned();
-	resizer
-		.resize(
-			&Image::from_slice_u8(
-				img.width(),
-				img.height(),
-				&mut bytes,
-				PixelType::U8x4,
-			)
-			.unwrap(),
-			&mut dst_image,
-			&ResizeOptions::new().resize_alg(resize_alg),
-		)
-		.unwrap();
-
-	DynamicImage::ImageRgba8(
-		ImageBuffer::from_raw(width, height, dst_image.into_vec())
-			.unwrap(),
-	)
-}
-
-#[cfg(feature = "image-rs")]
-#[cfg(not(feature = "fir"))]
-fn image_resize(
-	img: &DynamicImage,
-	width: u32,
-	height: u32,
-	filter: FilterType,
-) -> DynamicImage {
-	img.resize_exact(width, height, filter)
-}
-
-// #[cfg(feature = "image-rs")]
-// #[cfg(feature = "fir")]
-// fn image_resize(
-// 	img: &DynamicImage,
-// 	width: u32,
-// 	height: u32,
-// 	filter: FilterType,
-// ) -> DynamicImage {
-// }
-
-#[cfg(feature = "image-rs")]
 pub fn reduce_image_section(
 	value: (f32, f32),
-	block: &DynamicImage,
+	block: &PixlzrBlock,
 	filter_downscale: FilterType,
-) -> PixlzrBlockImage {
+) -> PixlzrBlock {
 	let value = (parse_value(value.0), parse_value(value.1));
 	// println!("Post-value: {}", value.0);
 	let level_hz = value.0.log2().round().min(0f32).exp2();
@@ -218,12 +156,9 @@ pub fn reduce_image_section(
 	let width = (width as f64 * level_hz as f64).max(1f64).ceil() as u32;
 	let height = (height as f64 * level_vr as f64).max(1f64).ceil() as u32;
 	// Resizes the image down
-	PixlzrBlockImage {
-		width,
-		height,
-		data: image_resize(block, width, height, filter_downscale),
-		block_value: Some(value.0.hypot(value.1)),
-	}
+	let mut img = block.resize(width, height, filter_downscale);
+	img.set_block_value(value.0.hypot(value.1));
+	img
 }
 
 #[inline]

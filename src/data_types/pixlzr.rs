@@ -11,7 +11,7 @@ use crate::operations::{
 use std::iter::Iterator;
 
 #[cfg(feature = "image-rs")]
-use image::{DynamicImage, GenericImage, GenericImageView};
+use image::{DynamicImage, GenericImage};
 
 use rayon::{
 	iter::{IndexedParallelIterator, ParallelIterator},
@@ -117,21 +117,7 @@ impl Pixlzr {
 						} else {
 							block_width
 						};
-						// Extract it's image
-						let img =
-							PixlzrBlockImage::from(block.clone()).data;
-						let pix_img = PixlzrBlockImage {
-							width: nwidth,
-							height: nheight,
-							data: if img.dimensions() == (nwidth, nheight)
-							{
-								img
-							} else {
-								img.resize_exact(nwidth, nheight, ifilter)
-							},
-							block_value: block.block_value(),
-						};
-						pix_img.into()
+						block.resize(nwidth, nheight, ifilter)
 					})
 					.collect::<Vec<PixlzrBlock>>()
 			})
@@ -148,45 +134,32 @@ impl Pixlzr {
 	}
 
 	#[cfg(feature = "image-rs")]
-	pub fn shrink<F0, F1>(
+	pub fn shrink(
 		&mut self,
 		filter_downscale: FilterType,
-		before_average: F0,
-		after_average: F1,
-	) where
-		F0: Clone + Fn(f32, f32) -> f32,
-		F1: Clone + Fn(f32) -> f32,
-	{
+		before_average: &fn(f32, f32) -> f32,
+		after_average: &fn(f32) -> f32,
+	) {
 		let filter_downscale = filter_downscale.into();
 		self.blocks = self
 			.blocks
 			.iter()
 			.map({
-				let before_average = before_average.clone();
-				let after_average = after_average.clone();
-				move |block| {
+				|block| {
 					if block.block_value().is_some() {
 						return (*block).clone();
 					}
-					let block = block.as_image().unwrap();
-					let img = &block.data;
 					// Calculate the value
 					let value = get_block_variance(
-						img,
+						&block,
 						&before_average,
 						&after_average,
 					);
-					let reduced = reduce_image_section(
+					reduce_image_section(
 						(value, value),
-						img,
+						block,
 						filter_downscale,
-					);
-					debug_assert_eq!(reduced.width, reduced.data.width());
-					debug_assert_eq!(
-						reduced.height,
-						reduced.data.height()
-					);
-					reduced.into()
+					)
 				}
 			})
 			.collect();
@@ -199,9 +172,32 @@ impl Pixlzr {
 		filter_downscale: FilterType,
 		factor: f32,
 	) {
-		let before_average = |x: f32, avg: f32| (x - avg).abs();
+		let before_average: fn(f32, f32) -> f32 =
+			|x: f32, avg: f32| (x - avg).abs();
 		let after_average = |x: f32| x * factor * BASE_FACTOR;
-		self.shrink(filter_downscale, before_average, after_average);
+		let filter_downscale = filter_downscale.into();
+		self.blocks = self
+			.blocks
+			.iter()
+			.map({
+				|block| {
+					if block.block_value().is_some() {
+						return (*block).clone();
+					}
+					// Calculate the value
+					let value = get_block_variance(
+						&block,
+						&before_average,
+						&after_average,
+					);
+					reduce_image_section(
+						(value, value),
+						block,
+						filter_downscale,
+					)
+				}
+			})
+			.collect();
 	}
 
 	#[cfg(feature = "image-rs")]
@@ -215,18 +211,15 @@ impl Pixlzr {
 			.blocks
 			.iter()
 			.map(|block| {
-				let block = block.as_image().unwrap();
-				let img = &block.data;
+				let block_i = block.as_image().unwrap();
+				let img = &block_i.data;
 				// Calculate the value
 				let value = get_block_variance_by_directions(img);
-				let reduced = reduce_image_section(
+				reduce_image_section(
 					(value.0 * factor, value.1 * factor),
-					img,
+					block,
 					filter_downscale,
-				);
-				debug_assert_eq!(reduced.width, reduced.data.width());
-				debug_assert_eq!(reduced.height, reduced.data.height());
-				reduced.into()
+				)
 			})
 			.collect();
 	}
@@ -253,10 +246,10 @@ impl Pixlzr {
 		// );
 		pix.lines().enumerate().for_each(|(y, line)| {
 			line.iter().enumerate().for_each(|(x, block)| {
-				let img = &block.as_image().unwrap().data;
+				let img = PixlzrBlockImage::from(block.clone()).data;
 				output
 					.copy_from(
-						img,
+						&img,
 						x as u32 * block_width,
 						y as u32 * block_height,
 					)

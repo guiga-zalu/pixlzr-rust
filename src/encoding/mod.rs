@@ -4,14 +4,11 @@ pub mod bytes;
 use self::bytes::Bytes;
 use crate::{
 	constants::*,
-	data_types::{Pixlzr, PixlzrBlock, PixlzrBlockImage, Semver},
+	data_types::{Pixlzr, PixlzrBlock, PixlzrBlockRaw, Semver},
 };
 
 use phf;
 use qoi::{self, Result as Result_QOI};
-
-#[cfg(feature = "image-rs")]
-use image::{RgbImage, RgbaImage};
 
 #[allow(unused_imports)]
 use rayon::iter::{IntoParallelIterator, ParallelIterator};
@@ -168,7 +165,7 @@ impl Pixlzr {
 	}
 }
 
-fn encode_block(block: &crate::PixlzrBlock) -> (Bytes, usize) {
+fn encode_block(block: &PixlzrBlock) -> (Bytes, usize) {
 	let mut output = Bytes::new(vec![0; PIXLZR_BLOCK_HEADER_BASE_SIZE]);
 
 	// Writes PIXLZR_BLOCK magic numbers
@@ -202,8 +199,7 @@ fn encode_block(block: &crate::PixlzrBlock) -> (Bytes, usize) {
 	(output, PIXLZR_BLOCK_HEADER_BASE_SIZE + len)
 }
 
-#[cfg(feature = "image-rs")]
-fn decode_block(reader: &mut Bytes) -> Result_QOI<PixlzrBlockImage> {
+fn decode_block(reader: &mut Bytes) -> Result_QOI<PixlzrBlockRaw> {
 	// Checks for the header's magic numbers
 	assert_eq!(
 		PIXLZR_BLOCK_MAGIC_NUMBERS,
@@ -232,13 +228,14 @@ fn decode_block(reader: &mut Bytes) -> Result_QOI<PixlzrBlockImage> {
 	// Gets image data
 	let width = qoi_header.width;
 	let height = qoi_header.height;
-	let data = if qoi_header.channels.is_rgba() {
-		RgbaImage::from_vec(width, height, qoi_data).unwrap().into()
-	} else {
-		RgbImage::from_vec(width, height, qoi_data).unwrap().into()
+	let data = crate::RawImage {
+		alpha: qoi_header.channels.is_rgba(),
+		width,
+		height,
+		data: qoi_data,
 	};
 
-	Ok(PixlzrBlockImage {
+	Ok(PixlzrBlockRaw {
 		width,
 		height,
 		data,

@@ -19,12 +19,10 @@
 #[cfg(feature = "image-rs")]
 pub mod tree;
 
-use crate::{data_types::PixlzrBlock, operations::*};
+use crate::{data_types::block::PixlzrBlockImage, operations::*};
 
 use crate::split::split_image;
-use image::{
-	imageops::FilterType, DynamicImage, GenericImage, GenericImageView,
-};
+use image::{imageops::FilterType, DynamicImage, GenericImage};
 
 ///
 pub fn process_into_custom<F0, F1>(
@@ -46,20 +44,19 @@ where
 	// For each splitten block
 	for section in split_image(image, block_width, block_height) {
 		// Get the block and it's dimensions
-		let block: DynamicImage = match section.block {
-			PixlzrBlock::Image(section) => section.data,
-			_ => panic!(),
-		};
+		let (x, y) = (section.x, section.y);
+		let block = section.block;
 		let (w0, h0) = block.dimensions();
 		// Calculate the value
 		let value =
 			get_block_variance(&block, &before_average, &after_average);
-		let img =
+		let img = PixlzrBlockImage::from(
 			reduce_image_section((value, value), &block, filter_downscale)
-				.data
-				.resize(w0, h0, filter_upscale);
+				.resize(w0, h0, filter_upscale),
+		)
+		.data;
 		// Saves it's data in the output buffer
-		output.copy_from(&img, section.x, section.y).unwrap();
+		output.copy_from(&img, x, y).unwrap();
 	}
 	// Returns the new image
 	output
@@ -83,20 +80,19 @@ pub fn process_custom(
 	// For each splitten block
 	for section in split_image(image, block_width, block_height) {
 		// Get the block and it's dimensions
-		let block: DynamicImage = match section.block {
-			PixlzrBlock::Image(section) => section.data,
-			_ => panic!(),
-		};
+		let (x, y) = (section.x, section.y);
+		let block = section.block;
 		let (w0, h0) = block.dimensions();
 		// Calculate the value
 		let value =
 			get_block_variance(&block, &before_average, &after_average);
-		let img =
+		let img = PixlzrBlockImage::from(
 			reduce_image_section((value, value), &block, filter_downscale)
-				.data
-				.resize(w0, h0, filter_upscale);
+				.resize(w0, h0, filter_upscale),
+		)
+		.data;
 		// Saves it's data in the output buffer
-		output.copy_from(&img, section.x, section.y).unwrap();
+		output.copy_from(&img, x, y).unwrap();
 	}
 	// Returns the new image
 	output

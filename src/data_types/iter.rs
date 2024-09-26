@@ -1,3 +1,5 @@
+#![cfg(feature = "image-rs")]
+
 use super::PixlzrBlock;
 
 use crate::split::get_image_block;

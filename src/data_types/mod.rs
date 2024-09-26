@@ -28,16 +28,16 @@ pub enum FilterType {
 }
 
 #[cfg(feature = "image-rs")]
-use image::imageops::FilterType as ImageFilterType;
+use image::imageops::FilterType as I_FilterType;
 #[cfg(feature = "image-rs")]
-impl From<FilterType> for ImageFilterType {
+impl From<FilterType> for I_FilterType {
 	fn from(value: FilterType) -> Self {
 		match value {
-			FilterType::Nearest => ImageFilterType::Nearest,
-			FilterType::Triangle => ImageFilterType::Triangle,
-			FilterType::CatmullRom => ImageFilterType::CatmullRom,
-			FilterType::Gaussian => ImageFilterType::Gaussian,
-			FilterType::Lanczos3 => ImageFilterType::Lanczos3,
+			FilterType::Nearest => I_FilterType::Nearest,
+			FilterType::Triangle => I_FilterType::Triangle,
+			FilterType::CatmullRom => I_FilterType::CatmullRom,
+			FilterType::Gaussian => I_FilterType::Gaussian,
+			FilterType::Lanczos3 => I_FilterType::Lanczos3,
 		}
 	}
 }

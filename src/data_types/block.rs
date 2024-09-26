@@ -1,5 +1,43 @@
+use std::slice::ChunksExact;
+
+/// ImageBlock
+/// - x: u32
+/// - y: u32
+/// - block: PixlzrBlock
+///   + Raw: PixlzrBlockRaw
+///     - width: u32
+///     - height: u32
+///     - block_value: Option<f32>
+///     - data: RawImage
+///       - alpha: bool
+///       - width: u32
+///       - height: u32
+///       - data: Vec<u8>
+///   + Image: PixlzrBlockImage
+///     - width: u32
+///     - height: u32
+///     - block_value: Option<f32>
+///     - data: DynamicImage
+///
+/// PixlzrBlockRaw <-> PixlzrBlockImage
+/// - PixlzrBlock(Image) -> PixlzrBlockImage
+/// - PixlzrBlock(Raw) -> PixlzrBlockImage
+///
+/// - PixlzrBlock(Raw) -> PixlzrBlockRaw
+/// - PixlzrBlock(Image) -> PixlzrBlockRaw
+/// PixlzrBlock.into() -> PixlzrBlock::{Raw, Image}
+
+#[cfg(feature = "fir")]
+use fast_image_resize::{
+	FilterType as FIR_FilterType, PixelType as FIR_PixelType, ResizeAlg,
+	Resizer,
+};
+
 #[cfg(feature = "image-rs")]
-use image::{DynamicImage, RgbImage, RgbaImage};
+use image::{
+	imageops::FilterType as I_FilterType, DynamicImage, RgbImage,
+	RgbaImage,
+};
 
 /// Image block representation, with:
 /// - `x: u32, y: u32` as the coordinates of the block
@@ -146,6 +184,13 @@ impl PixlzrBlock {
 			PixlzrBlock::Raw(raw) => raw.data.data.as_slice(),
 		}
 	}
+	pub fn set_block_value(&mut self, value: f32) {
+		match self {
+			#[cfg(feature = "image-rs")]
+			PixlzrBlock::Image(image) => image.block_value = Some(value),
+			PixlzrBlock::Raw(raw) => raw.block_value = Some(value),
+		}
+	}
 }
 
 #[allow(clippy::match_wildcard_for_single_variants)]
@@ -172,5 +217,131 @@ impl PixlzrBlock {
 	}
 	pub fn is_raw(&self) -> bool {
 		matches!(self, PixlzrBlock::Raw(_))
+	}
+}
+
+impl PixlzrBlock {
+	pub fn pixels(&self) -> ChunksExact<u8> {
+		let chunk_size = 3 + self.has_alpha() as usize;
+		match self {
+			#[cfg(feature = "image-rs")]
+			PixlzrBlock::Image(image) => {
+				image.data.as_bytes().chunks_exact(chunk_size)
+			}
+			PixlzrBlock::Raw(raw) => {
+				raw.data.data.chunks_exact(chunk_size)
+			}
+		}
+	}
+
+	pub fn resize(
+		&self,
+		width: u32,
+		height: u32,
+		filter: I_FilterType,
+	) -> Self {
+		if self.dimensions() == (width, height) {
+			return self.clone();
+		}
+		#[cfg(feature = "image-rs")]
+		#[cfg(not(feature = "fir"))]
+		{
+			let mut img = PixlzrBlockImage::from(self);
+			img.width = width;
+			img.height = height;
+			img.data = img.data.resize_exact(width, height, filter);
+			return img.into();
+		}
+
+		use fast_image_resize::{images::Image, ResizeOptions};
+
+		let alpha = self.has_alpha();
+		let pixel_type = if alpha {
+			FIR_PixelType::U8x4
+		} else {
+			FIR_PixelType::U8x3
+		};
+
+		let mut dst_image = Image::new(width, height, pixel_type);
+
+		let resize_alg = filter_type_to_fir_resizing_alg(
+			filter,
+			width > self.width() || height > self.height(),
+			2,
+		);
+
+		let mut resizer = Resizer::new();
+		let mut bytes = self.as_slice().to_owned();
+		resizer
+			.resize(
+				&Image::from_slice_u8(
+					self.width(),
+					self.height(),
+					&mut bytes,
+					pixel_type,
+				)
+				.unwrap(),
+				&mut dst_image,
+				&ResizeOptions::new().resize_alg(resize_alg),
+			)
+			.unwrap();
+
+		PixlzrBlockRaw {
+			width,
+			height,
+			block_value: None,
+			data: RawImage {
+				alpha,
+				width,
+				height,
+				data: dst_image.into_vec(),
+			},
+		}
+		.into()
+	}
+}
+
+#[cfg(feature = "fir")]
+fn filter_type_to_fir_resizing_alg(
+	filter: I_FilterType,
+	upscale: bool,
+	multiplicity: u8,
+) -> ResizeAlg {
+	match filter {
+		I_FilterType::Nearest => ResizeAlg::Nearest,
+		f if upscale => match f {
+			I_FilterType::Triangle => ResizeAlg::SuperSampling(
+				FIR_FilterType::Bilinear,
+				multiplicity,
+			),
+			I_FilterType::Lanczos3 => ResizeAlg::SuperSampling(
+				FIR_FilterType::Lanczos3,
+				multiplicity,
+			),
+			I_FilterType::Gaussian => ResizeAlg::SuperSampling(
+				FIR_FilterType::Gaussian,
+				multiplicity,
+			),
+			I_FilterType::CatmullRom => ResizeAlg::SuperSampling(
+				FIR_FilterType::CatmullRom,
+				multiplicity,
+			),
+			_ => unreachable!(),
+		},
+		f => match f {
+			I_FilterType::Triangle => {
+				ResizeAlg::Convolution(FIR_FilterType::Hamming)
+			}
+			I_FilterType::Lanczos3 => {
+				ResizeAlg::Convolution(FIR_FilterType::Lanczos3)
+			}
+			I_FilterType::Gaussian => {
+				ResizeAlg::Convolution(FIR_FilterType::Gaussian)
+			}
+			I_FilterType::CatmullRom => {
+				ResizeAlg::Convolution(FIR_FilterType::CatmullRom)
+			}
+			_ => unreachable!(),
+		},
 	}
 }
