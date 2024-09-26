@@ -1,0 +1,7 @@
+Decoding pix: 4,810ms ~ 0,005ms 
+Decoding png: 22,30ms ~ 0,02ms
+Encoding pix: 932mms ~ 2mms
+Encoding png: 50,12ms ~ 0,03ms
+Converting to image: 1,206ms ~ 0,005ms
+Shrinking: 88,4ms ~ 0,2ms
+Encoding pix - shrunk: 665mms ~ 4mms
