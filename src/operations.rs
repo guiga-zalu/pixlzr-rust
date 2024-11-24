@@ -23,7 +23,7 @@ use image::{imageops::FilterType, GenericImageView, Pixel, Primitive};
 use palette::{IntoColor, Oklab, Oklaba, Srgb, Srgba};
 
 // #[cfg(not(feature = "image-rs"))]
-/// TODO: Support for PixlzrBlock instead of DynamicImage
+/// TODO: Support for PixlzrBlock instead of DynamicImage  
 /// Calculates a `[0; 1]` value for the pixel variance of a given `img` image
 ///
 /// 1. Calculates the average of pixel values
