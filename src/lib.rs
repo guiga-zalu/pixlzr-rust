@@ -9,3 +9,6 @@ mod split;
 // pub mod tests;
 
 pub use crate::{constants::*, data_types::*, process::*};
+
+#[cfg(feature = "image-rs")]
+pub use image;
