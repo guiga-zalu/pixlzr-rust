@@ -14,12 +14,10 @@
 ///   (img: &PixlzrBlock, ...) -> PixlzrBlock
 /// - !image-rs, !fir:
 ///   panic!
-use core::ops::{AddAssign, Mul};
-
 use crate::data_types::PixlzrBlock;
 
 #[cfg(feature = "image-rs")]
-use image::{imageops::FilterType, GenericImageView, Pixel, Primitive};
+use image::imageops::FilterType;
 use palette::{IntoColor, Oklab, Oklaba, Srgb, Srgba};
 
 /// Calculates a `[0; 1]` value for the pixel variance of a given `img` image
