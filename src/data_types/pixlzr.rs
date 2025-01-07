@@ -1,17 +1,11 @@
 use super::{block::*, FilterType};
 
-#[cfg(feature = "image-rs")]
-use super::iter::*;
-
 use crate::operations::{
-	get_block_variance, get_block_variance_by_directions,
+	get_block_variance, get_block_variance_directionally,
 	reduce_image_section,
 };
 
 use std::iter::Iterator;
-
-#[cfg(feature = "image-rs")]
-use image::{DynamicImage, GenericImage};
 
 use rayon::{
 	iter::{IndexedParallelIterator, ParallelIterator},
@@ -31,9 +25,11 @@ pub struct Pixlzr {
 }
 
 impl Pixlzr {
+	/// Returns the width and height of the image as a tuple of u32.
 	pub fn dimensions(&self) -> (u32, u32) {
 		(self.width, self.height)
 	}
+	/// Returns the common block dimensions in the image as a tuple of (width, height).
 	pub fn block_dimensions(&self) -> (u32, u32) {
 		(self.block_width, self.block_height)
 	}
@@ -48,43 +44,36 @@ impl Pixlzr {
 	pub fn block_grid_dimensions(&self) -> (u32, u32) {
 		(self.block_grid_width(), self.block_grid_height())
 	}
+	/// Returns a tuple of two booleans indicating if there are trailing blocks
+	/// in both the horizontal and vertical directions of the block grid.
+	///
+	/// A trailing block is a block that is below the full size of (`block_width`, `block_height`).
 	pub fn block_grid_has_trailing(&self) -> (bool, bool) {
 		(
 			self.width % self.block_width > 0,
 			self.height % self.block_height > 0,
 		)
 	}
-	#[cfg(feature = "image-rs")]
-	pub fn from_image(
-		image: &DynamicImage,
-		block_width: u32,
-		block_height: u32,
-	) -> Pixlzr {
-		let blocks: Vec<_> =
-			ImageBlockIterator::new(image, block_width, block_height)
-				.collect();
-		Self {
-			width: image.width(),
-			height: image.height(),
-			block_width,
-			block_height,
-			filter: None,
-			blocks,
-		}
-	}
 
+	/// Returns a parallel iterator over the image's blocks organized in lines, with the amount of lines equal to the vertical size of the block grid.
+	///
+	/// Each element of the iterator is a slice of blocks, with the length equal to the horizontal size of the block grid.
+	///
+	/// Like `lines`, but parallel through `rayon`.
 	pub fn par_lines(&self) -> rayon::slice::ChunksExact<PixlzrBlock> {
 		self.blocks
 			.par_chunks_exact(self.block_grid_width() as usize)
 	}
 
+	/// Returns an iterator over the image's blocks organized in lines, with the amount of lines equal to the vertical size of the block grid.
+	///
+	/// Each element of the iterator is a slice of blocks, with the length equal to the horizontal size of the block grid.
+	///
+	/// Like `par_lines`, but not parallel.
 	pub fn lines(&self) -> std::slice::ChunksExact<PixlzrBlock> {
 		self.blocks.chunks_exact(self.block_grid_width() as usize)
 	}
-}
 
-impl Pixlzr {
-	#[cfg(feature = "image-rs")]
 	pub fn expand(&self, filter: FilterType) -> Self {
 		let ifilter = filter.into();
 		// Extract properties
@@ -133,7 +122,6 @@ impl Pixlzr {
 		}
 	}
 
-	#[cfg(feature = "image-rs")]
 	pub fn shrink(
 		&mut self,
 		filter_downscale: FilterType,
@@ -166,7 +154,6 @@ impl Pixlzr {
 	}
 
 	#[inline]
-	#[cfg(feature = "image-rs")]
 	pub fn shrink_by(
 		&mut self,
 		filter_downscale: FilterType,
@@ -200,7 +187,6 @@ impl Pixlzr {
 			.collect();
 	}
 
-	#[cfg(feature = "image-rs")]
 	pub fn shrink_directionally(
 		&mut self,
 		filter_downscale: FilterType,
@@ -211,10 +197,8 @@ impl Pixlzr {
 			.blocks
 			.iter()
 			.map(|block| {
-				let block_i = block.as_image().unwrap();
-				let img = &block_i.data;
 				// Calculate the value
-				let value = get_block_variance_by_directions(img);
+				let value = get_block_variance_directionally(block);
 				reduce_image_section(
 					(value.0 * factor, value.1 * factor),
 					block,
@@ -222,64 +206,5 @@ impl Pixlzr {
 				)
 			})
 			.collect();
-	}
-
-	#[cfg(feature = "image-rs")]
-	pub fn to_image(&self, filter: FilterType) -> DynamicImage {
-		// println!("Pre-expansion");
-		let pix = self.expand(filter);
-		// println!("Post-expansion");
-		let mut output =
-			if pix.blocks.iter().any(|block| block.has_alpha()) {
-				DynamicImage::new_rgba8(self.width, self.height)
-			} else {
-				DynamicImage::new_rgb8(self.width, self.height)
-			};
-		let (block_width, block_height) = pix.block_dimensions();
-		// let cols = (self.width as f32 / block_width as f32).ceil() as u32;
-		// let mut x = 0;
-		// let mut y = 0;
-		// println!(
-		// 	"b wh: {:?}, out wh: {:?}",
-		// 	pix.block_dimensions(),
-		// 	pix.dimensions()
-		// );
-		pix.lines().enumerate().for_each(|(y, line)| {
-			line.iter().enumerate().for_each(|(x, block)| {
-				let img = PixlzrBlockImage::from(block.clone()).data;
-				output
-					.copy_from(
-						&img,
-						x as u32 * block_width,
-						y as u32 * block_height,
-					)
-					.unwrap();
-			})
-		});
-		// for block in pix.blocks {
-		// 	let img = &block.as_image().unwrap().data;
-		// 	// println!(
-		// 	// 	"xy: ({x}, {y}),\t{:?} => ({}, {})\tim wh: {:?}",
-		// 	// 	(x * block_width, y * block_height),
-		// 	// 	x * block_width + img.width(),
-		// 	// 	y * block_height + img.height(),
-		// 	// 	img.dimensions(),
-		// 	// );
-		// 	output
-		// 		.copy_from(img, x * block_width, y * block_height)
-		// 		.unwrap();
-		// 	x += 1;
-		// 	if x == cols {
-		// 		x = 0;
-		// 		y += 1;
-		// 	}
-		// }
-		output
-	}
-}
-
-impl From<Pixlzr> for DynamicImage {
-	fn from(value: Pixlzr) -> Self {
-		value.to_image(value.filter.unwrap_or(FilterType::Gaussian))
 	}
 }

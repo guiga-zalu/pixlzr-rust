@@ -2,6 +2,8 @@ pub(crate) mod block;
 #[cfg(feature = "image-rs")]
 pub(crate) mod iter;
 pub(crate) mod pixlzr;
+#[cfg(feature = "image-rs")]
+pub(crate) mod pixlzr_image;
 pub mod semver;
 pub use self::{block::*, iter::*, pixlzr::*, semver::Semver};
 
