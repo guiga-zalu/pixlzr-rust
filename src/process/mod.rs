@@ -19,18 +19,21 @@
 #[cfg(feature = "image-rs")]
 pub mod tree;
 
-use crate::{data_types::block::PixlzrBlockImage, operations::*};
+use crate::{
+	data_types::{block::PixlzrBlockImage, FilterType as P_FilterType},
+	operations::*,
+};
 
 use crate::split::split_image;
-use image::{imageops::FilterType, DynamicImage, GenericImage};
+use image::{DynamicImage, GenericImage};
 
 ///
 pub fn process_into_custom<F0, F1>(
 	image: &DynamicImage,
 	block_width: u32,
 	block_height: u32,
-	filter_downscale: FilterType,
-	filter_upscale: FilterType,
+	filter_downscale: P_FilterType,
+	filter_upscale: P_FilterType,
 	before_average: F0,
 	after_average: F1,
 ) -> DynamicImage
@@ -69,8 +72,8 @@ pub fn process_custom(
 	image: &DynamicImage,
 	block_width: u32,
 	block_height: u32,
-	filter_downscale: FilterType,
-	filter_upscale: FilterType,
+	filter_downscale: P_FilterType,
+	filter_upscale: P_FilterType,
 	before_average: fn(f32, f32) -> f32,
 	after_average: fn(f32) -> f32,
 ) -> DynamicImage {
@@ -110,8 +113,8 @@ pub fn process(image: &DynamicImage, block_size: u32) -> DynamicImage {
 		image,
 		block_size,
 		block_size,
-		FilterType::Lanczos3,
-		FilterType::Nearest,
+		P_FilterType::Lanczos3,
+		P_FilterType::Nearest,
 		before_average,
 		after_average,
 	)

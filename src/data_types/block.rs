@@ -1,3 +1,4 @@
+///! Contains the PixlzrBlock and ImageBlock structs
 use std::slice::ChunksExact;
 
 /// ImageBlock
@@ -26,12 +27,10 @@ use std::slice::ChunksExact;
 /// - PixlzrBlock(Raw) -> PixlzrBlockRaw
 /// - PixlzrBlock(Image) -> PixlzrBlockRaw
 /// PixlzrBlock.into() -> PixlzrBlock::{Raw, Image}
+use super::FilterType as P_FilterType;
 
 #[cfg(feature = "fir")]
-use fast_image_resize::{
-	FilterType as FIR_FilterType, PixelType as FIR_PixelType, ResizeAlg,
-	Resizer,
-};
+use fast_image_resize::{PixelType as FIR_PixelType, Resizer};
 
 #[cfg(feature = "image-rs")]
 use image::{
@@ -49,14 +48,31 @@ pub struct ImageBlock {
 }
 
 #[derive(Clone, Debug)]
+/// Raw image representation, with:
+/// - `width: u32` as the width of the image
+/// - `height: u32` as the height of the image
+/// - `alpha: bool` indicating if there is an alpha channel
+/// - `data: Vec<u8>` as the raw pixel data
 pub struct RawImage {
 	pub alpha: bool,
-	pub width: u32,
-	pub height: u32,
+	// pub width: u32,
+	// pub height: u32,
 	pub data: Vec<u8>,
 }
 
 #[derive(Clone, Debug)]
+/// Representation of a raw image block with its metadata.
+///
+/// # Fields
+///
+/// * `width` - The width of the image block.
+/// * `height` - The height of the image block.
+/// * `block_value` - An optional value representing the block's computed value.
+/// * `data` - The raw pixel data encapsulated in a `RawImage`.
+///
+/// The `PixlzrBlockRaw` struct is part of the `PixlzrBlock` enum and is used
+/// to represent the raw image data. `PixlzrBlockRaw` can be converted to and
+/// from `PixlzrBlock` using the provided conversion implementations.
 pub struct PixlzrBlockRaw {
 	pub width: u32,
 	pub height: u32,
@@ -66,6 +82,18 @@ pub struct PixlzrBlockRaw {
 
 #[cfg(feature = "image-rs")]
 #[derive(Clone, Debug)]
+/// Representation of an image block with its metadata.
+///
+/// # Fields
+///
+/// * `width` - The width of the image block.
+/// * `height` - The height of the image block.
+/// * `block_value` - An optional value representing the block's computed value.
+/// * `data` - The pixel data encapsulated in a `DynamicImage`.
+///
+/// The `PixlzrBlockImage` struct is part of the `PixlzrBlock` enum and is used
+/// to represent the image data. `PixlzrBlockImage` can be converted to and
+/// from `PixlzrBlock` using the provided conversion implementations.
 pub struct PixlzrBlockImage {
 	pub width: u32,
 	pub height: u32,
@@ -74,6 +102,16 @@ pub struct PixlzrBlockImage {
 }
 
 #[derive(Clone, Debug)]
+/// Represents a block in the Pixlzr image processing system.
+///
+/// The `PixlzrBlock` enum can hold either a raw image block or an image block
+/// with metadata. It provides methods for converting between these
+/// representations.
+///
+/// # Variants
+///
+/// * `Raw` - Holds a `PixlzrBlockRaw` which contains raw pixel data.
+/// * `Image` - Holds a `PixlzrBlockImage` which contains a dynamic image.
 pub enum PixlzrBlock {
 	Raw(PixlzrBlockRaw),
 	#[cfg(feature = "image-rs")]
@@ -126,8 +164,6 @@ impl From<PixlzrBlock> for PixlzrBlockRaw {
 				let (width, height, img) =
 					(image.width, image.height, image.data);
 				let data = RawImage {
-					width,
-					height,
 					alpha: img.as_rgba8().is_some(),
 					data: img.into_bytes(),
 				};
@@ -238,7 +274,7 @@ impl PixlzrBlock {
 		&self,
 		width: u32,
 		height: u32,
-		filter: I_FilterType,
+		filter: P_FilterType,
 	) -> Self {
 		if self.dimensions() == (width, height) {
 			return self.clone();
@@ -246,10 +282,10 @@ impl PixlzrBlock {
 		#[cfg(feature = "image-rs")]
 		#[cfg(not(feature = "fir"))]
 		{
-			let mut img = PixlzrBlockImage::from(self);
+			let mut img = PixlzrBlockImage::from(*self);
 			img.width = width;
 			img.height = height;
-			img.data = img.data.resize_exact(width, height, filter);
+			img.data = img.data.resize_exact(width, height, filter.into());
 			return img.into();
 		}
 
@@ -264,14 +300,13 @@ impl PixlzrBlock {
 
 		let mut dst_image = Image::new(width, height, pixel_type);
 
-		let resize_alg = filter_type_to_fir_resizing_alg(
-			filter,
+		let resize_alg = filter.to_fir_resizing_algorithm(
 			width > self.width() || height > self.height(),
 			2,
 		);
 
 		let mut resizer = Resizer::new();
-		let mut bytes = self.as_slice().to_owned();
+		let mut bytes = self.as_slice().to_vec();
 		resizer
 			.resize(
 				&Image::from_slice_u8(
@@ -292,8 +327,6 @@ impl PixlzrBlock {
 			block_value: None,
 			data: RawImage {
 				alpha,
-				width,
-				height,
 				data: dst_image.into_vec(),
 			},
 		}
@@ -301,47 +334,103 @@ impl PixlzrBlock {
 	}
 }
 
-#[cfg(feature = "fir")]
-fn filter_type_to_fir_resizing_alg(
-	filter: I_FilterType,
-	upscale: bool,
-	multiplicity: u8,
-) -> ResizeAlg {
-	match filter {
-		I_FilterType::Nearest => ResizeAlg::Nearest,
-		f if upscale => match f {
-			I_FilterType::Triangle => ResizeAlg::SuperSampling(
-				FIR_FilterType::Bilinear,
-				multiplicity,
-			),
-			I_FilterType::Lanczos3 => ResizeAlg::SuperSampling(
-				FIR_FilterType::Lanczos3,
-				multiplicity,
-			),
-			I_FilterType::Gaussian => ResizeAlg::SuperSampling(
-				FIR_FilterType::Gaussian,
-				multiplicity,
-			),
-			I_FilterType::CatmullRom => ResizeAlg::SuperSampling(
-				FIR_FilterType::CatmullRom,
-				multiplicity,
-			),
-			_ => unreachable!(),
-		},
-		f => match f {
-			I_FilterType::Triangle => {
-				ResizeAlg::Convolution(FIR_FilterType::Hamming)
-			}
-			I_FilterType::Lanczos3 => {
-				ResizeAlg::Convolution(FIR_FilterType::Lanczos3)
-			}
-			I_FilterType::Gaussian => {
-				ResizeAlg::Convolution(FIR_FilterType::Gaussian)
-			}
-			I_FilterType::CatmullRom => {
-				ResizeAlg::Convolution(FIR_FilterType::CatmullRom)
-			}
-			_ => unreachable!(),
-		},
+pub mod tests_on_pixlzrblock {
+	#[allow(unused_imports)]
+	use super::{
+		I_FilterType, P_FilterType, PixlzrBlock, PixlzrBlockImage,
+		PixlzrBlockRaw, RawImage,
+	};
+	#[allow(unused_imports)]
+	use image::RgbaImage;
+
+	#[test]
+	fn test_create_block() {
+		// Create a raw block
+		let block = PixlzrBlock::Raw(PixlzrBlockRaw {
+			width: 100,
+			height: 100,
+			block_value: None,
+			data: RawImage {
+				alpha: true,
+				data: vec![0; 100 * 100 * 4],
+			},
+		});
+		assert_eq!(block.width(), 100);
+		assert_eq!(block.height(), 100);
+
+		#[cfg(feature = "image-rs")]
+		{
+			let block = PixlzrBlock::Image(PixlzrBlockImage {
+				width: 100,
+				height: 100,
+				block_value: None,
+				data: image::DynamicImage::ImageRgba8(
+					image::RgbaImage::from_raw(
+						100,
+						100,
+						vec![0; 100 * 100 * 4],
+					)
+					.unwrap(),
+				),
+			});
+			assert_eq!(block.width(), 100);
+			assert_eq!(block.height(), 100);
+		}
+	}
+
+	#[test]
+	fn test_pixels_iterator() {
+		let data = vec![0; 100 * 100 * 4];
+		let block = PixlzrBlock::Raw(PixlzrBlockRaw {
+			width: 100,
+			height: 100,
+			block_value: None,
+			data: RawImage {
+				alpha: true,
+				data: data.clone(),
+			},
+		});
+		let pixels = block.pixels();
+		assert_eq!(pixels.len(), 100 * 100);
+		assert!(pixels
+			.zip(data.as_slice().chunks_exact(4))
+			.all(|(px, dx)| px.iter().zip(dx).all(|(p, d)| p == d)));
+	}
+
+	#[test]
+	fn test_resize() {
+		// All black
+		let block = PixlzrBlock::Raw(PixlzrBlockRaw {
+			width: 100,
+			height: 100,
+			block_value: None,
+			data: RawImage {
+				alpha: false,
+				data: vec![0; 100 * 100 * 3],
+			},
+		});
+		let resized = block.resize(10, 10, P_FilterType::Lanczos3);
+		assert_eq!(resized.width(), 10);
+		assert_eq!(resized.height(), 10);
+		let data = resized.as_slice();
+		assert_eq!(data.len(), 10 * 10 * 3);
+		assert_eq!(data, &vec![0; 10 * 10 * 3][..]);
+
+		// All white
+		let block = PixlzrBlock::Raw(PixlzrBlockRaw {
+			width: 100,
+			height: 100,
+			block_value: None,
+			data: RawImage {
+				alpha: false,
+				data: vec![255; 100 * 100 * 3],
+			},
+		});
+		let resized = block.resize(10, 10, P_FilterType::Lanczos3);
+		assert_eq!(resized.width(), 10);
+		assert_eq!(resized.height(), 10);
+		let data = resized.as_slice();
+		assert_eq!(data.len(), 10 * 10 * 3);
+		assert_eq!(data, &vec![255; 10 * 10 * 3][..]);
 	}
 }

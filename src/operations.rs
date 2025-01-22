@@ -14,10 +14,8 @@
 ///   (img: &PixlzrBlock, ...) -> PixlzrBlock
 /// - !image-rs, !fir:
 ///   panic!
-use crate::data_types::PixlzrBlock;
+use crate::data_types::{FilterType as P_FilterType, PixlzrBlock};
 
-#[cfg(feature = "image-rs")]
-use image::imageops::FilterType;
 use palette::{IntoColor, Oklab, Oklaba, Srgb, Srgba};
 
 /// Calculates a `[0; 1]` value for the pixel variance of a given `img` image
@@ -142,7 +140,7 @@ fn parse_value(value: f32) -> f32 {
 pub fn reduce_image_section(
 	value: (f32, f32),
 	block: &PixlzrBlock,
-	filter_downscale: FilterType,
+	filter_downscale: P_FilterType,
 ) -> PixlzrBlock {
 	let value = (parse_value(value.0), parse_value(value.1));
 	// println!("Post-value: {}", value.0);
@@ -184,12 +182,13 @@ macro_rules! add_px_ {
 	};
 }
 
-/// TODO: Nowadays, it ignores an alpha channel
 /// Calculates a `[0; 1]` value for the pixel variance of a given `img` image
 ///
 /// 1. Calculates the average of pixel values
 /// 2. Calculates the total difference of these values
 /// 3. Normalizes the result to `[0; 1]`
+///
+/// TODO: Nowadays, it ignores an alpha channel
 pub fn get_block_variance_directionally(
 	block: &PixlzrBlock,
 ) -> (f32, f32) {

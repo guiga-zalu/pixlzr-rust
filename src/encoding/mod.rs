@@ -230,8 +230,6 @@ fn decode_block(reader: &mut Bytes) -> Result_QOI<PixlzrBlockRaw> {
 	let height = qoi_header.height;
 	let data = crate::RawImage {
 		alpha: qoi_header.channels.is_rgba(),
-		width,
-		height,
 		data: qoi_data,
 	};
 

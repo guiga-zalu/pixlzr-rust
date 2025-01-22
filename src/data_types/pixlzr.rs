@@ -1,4 +1,4 @@
-use super::{block::*, FilterType};
+use super::{block::*, FilterType as P_FilterType};
 
 use crate::operations::{
 	get_block_variance, get_block_variance_directionally,
@@ -20,7 +20,7 @@ pub struct Pixlzr {
 	pub height: u32,
 	pub block_width: u32,
 	pub block_height: u32,
-	pub filter: Option<FilterType>,
+	pub filter: Option<P_FilterType>,
 	pub blocks: Vec<PixlzrBlock>,
 }
 
@@ -74,8 +74,7 @@ impl Pixlzr {
 		self.blocks.chunks_exact(self.block_grid_width() as usize)
 	}
 
-	pub fn expand(&self, filter: FilterType) -> Self {
-		let ifilter = filter.into();
+	pub fn expand(&self, filter: P_FilterType) -> Self {
 		// Extract properties
 		let (width, height) = self.dimensions();
 		let (block_width, block_height) = self.block_dimensions();
@@ -106,7 +105,7 @@ impl Pixlzr {
 						} else {
 							block_width
 						};
-						block.resize(nwidth, nheight, ifilter)
+						block.resize(nwidth, nheight, filter)
 					})
 					.collect::<Vec<PixlzrBlock>>()
 			})
@@ -124,11 +123,10 @@ impl Pixlzr {
 
 	pub fn shrink(
 		&mut self,
-		filter_downscale: FilterType,
+		filter_downscale: P_FilterType,
 		before_average: &fn(f32, f32) -> f32,
 		after_average: &fn(f32) -> f32,
 	) {
-		let filter_downscale = filter_downscale.into();
 		self.blocks = self
 			.blocks
 			.iter()
@@ -156,13 +154,12 @@ impl Pixlzr {
 	#[inline]
 	pub fn shrink_by(
 		&mut self,
-		filter_downscale: FilterType,
+		filter_downscale: P_FilterType,
 		factor: f32,
 	) {
 		let before_average: fn(f32, f32) -> f32 =
 			|x: f32, avg: f32| (x - avg).abs();
 		let after_average = |x: f32| x * factor * BASE_FACTOR;
-		let filter_downscale = filter_downscale.into();
 		self.blocks = self
 			.blocks
 			.iter()
@@ -189,10 +186,9 @@ impl Pixlzr {
 
 	pub fn shrink_directionally(
 		&mut self,
-		filter_downscale: FilterType,
+		filter_downscale: P_FilterType,
 		factor: f32,
 	) {
-		let filter_downscale = filter_downscale.into();
 		self.blocks = self
 			.blocks
 			.iter()

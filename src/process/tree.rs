@@ -1,10 +1,13 @@
 // TODO: Conferir via clippy
 #![allow(clippy::all, clippy::must_use_candidate, clippy::cast_sign_loss)]
-use crate::{data_types::block::PixlzrBlockImage, operations::*};
+use crate::{
+	data_types::{block::PixlzrBlockImage, FilterType as P_FilterType},
+	operations::*,
+};
 
 use crate::split::split_image;
 
-use image::{imageops::FilterType, DynamicImage, GenericImage};
+use image::{DynamicImage, GenericImage};
 
 macro_rules! dpl {
 	($T:ty) => {
@@ -22,7 +25,7 @@ pub fn process_custom(
 	threshold: f32,
 	block_size: dpl!(u32),
 	min_block_size: dpl!(u32),
-	filters: dpl!(FilterType),
+	filters: dpl!(P_FilterType),
 	before_average: &fn(f32, f32) -> f32,
 	after_average: &fn(f32) -> f32,
 ) -> DynamicImage {
@@ -99,7 +102,7 @@ pub fn process(
 		threshold,
 		(block_size, block_size),
 		(4, 4),
-		(FilterType::Lanczos3, FilterType::Nearest),
+		(P_FilterType::Lanczos3, P_FilterType::Nearest),
 		&before_average,
 		&after_average,
 	)
